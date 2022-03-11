@@ -1,8 +1,9 @@
-use super::Verb;
-use crate::Endpoint;
-use std::io::{Read, BufRead, BufReader};
+use std::io::{Read, BufRead, BufReader, Cursor};
 use std::convert::TryFrom;
-use super::Header;
+use std::ops::Deref;
+
+use crate::Endpoint;
+use super::{Header, Error, Verb};
 
 #[derive(Debug)]
 pub struct Request {
@@ -16,12 +17,11 @@ impl Request {
         &self.endpoint
     }
 
-    pub fn from_reader<F: Read>(reader: &mut F) -> Result<Self, ()> {
-        let mut reader = BufReader::new(reader);
+    pub fn from_stream<F: BufRead>(stream: &mut F) -> Result<Self, Error> {
         let mut line = String::new();
         let mut lines = Vec::new();
         
-        while let Ok(_) = reader.read_line(&mut line) {
+        while let Ok(_) = stream.read_line(&mut line) {
             if line == "\r\n" {
                 break;
             } else {
@@ -33,7 +33,13 @@ impl Request {
         let endpoint = {
             let top = lines.remove(0);
             let top: Vec<&str> = top.split(" ").collect();
-            (Verb::try_from(top[0]).unwrap(), top[1].to_string())
+            let verb = Verb::try_from(top[0])
+                .map_err(|_| Error::RequestParse{
+                    msg: "Invalid HTTP Verb in request",
+                    data: lines.iter().map(|l| l.as_bytes().iter()).flatten().map(|b| *b).collect()
+                })?;
+            let resource = top[1].to_string();
+            (verb, resource)
         };
 
         let mut header = Header::new();
@@ -44,12 +50,13 @@ impl Request {
             header.insert(key, value);
         }
 
-        let mut body = {
+        let body = {
             let content_length: usize = header.get("Content-Length")
                 .unwrap_or(&"0".to_owned())
-                .parse().map_err(|_| ())?;
+                .parse()
+                .map_err(|_| Error::InvalidHeader {msg: "Header element Content-Length had invalid value"})?;
             let mut data = vec![0; content_length];
-            reader.read_exact(&mut data[..]).map_err(|_| ())?;
+            stream.read_exact(&mut data[..]).map_err(|e| Error::IOError(e))?;
             data
         };
 

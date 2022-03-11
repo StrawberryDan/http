@@ -39,4 +39,11 @@ impl TryFrom<&str> for Verb {
     }
 }
 
-type Header = HashMap<String, String>;
+pub type Header = HashMap<String, String>;
+
+#[derive(Debug)]
+pub enum Error {
+    RequestParse{msg: &'static str, data: Vec<u8>},
+    InvalidHeader{msg: &'static str},
+    IOError(std::io::Error),
+}

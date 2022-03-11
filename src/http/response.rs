@@ -2,8 +2,7 @@ use super::*;
 
 use std::fs::File;
 use std::io::Read;
-use std::str::Bytes;
-use super::Header;
+use super::{Header, Error};
 
 pub struct Response {
     code: usize,
@@ -21,20 +20,32 @@ impl Response {
     }
 
     pub fn with_code(self, code: usize) -> Self {
-        Self { code: code, .. self }
+        Self { code, .. self }
     }
 
     pub fn with_header(self, header: Header) -> Self {
         Self { header, .. self }
     }
 
+    pub fn with_header_entry(mut self, key: &str, value: &str) -> Self {
+        self.header.insert(key.to_owned(), value.to_owned());
+        return self;
+    }
+
     pub fn with_body(self, body: Vec<u8>) -> Self {
         Self { body, .. self }
     }
 
-    pub fn from_file(mime: &str, mut file: File) -> Result<Self, ()> {
+    pub fn from_html(html: &str) -> Self {
+        Self::new().with_code(200)
+            .with_header_entry("Content-Type", "text/html")
+            .with_header_entry("Content-Length", html.as_bytes().len().to_string().as_str())
+            .with_body(html.as_bytes().to_vec())
+    }
+
+    pub fn from_file(mime: &str, mut file: File) -> Result<Self, Error> {
         let mut body = Vec::new();
-        file.read_to_end(&mut body).map_err(|e| ())?;
+        file.read_to_end(&mut body).map_err(|e| Error::IOError(e))?;
 
         let mut header = Header::new();
         header.insert(
