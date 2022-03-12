@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, path::PathBuf, sync::Arc};
+use std::{path::Path, path::PathBuf, sync::Arc};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::io::{BufReader, BufWriter, Write};
@@ -8,7 +8,6 @@ use std::sync::Mutex;
 use crate::thread_pool::ThreadPool;
 use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Verb as HTTPVerb};
 use crate::endpoint::{Endpoint, Tree as EndpointTree, URLBindings};
-use crate::Error;
 
 pub type Callback = fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse>;
 pub type ConnectionHandler = fn(TcpStream, SocketAddr, Arc<Mutex<EndpointTree>>);

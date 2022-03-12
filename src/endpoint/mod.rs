@@ -78,4 +78,5 @@ macro_rules! new_endpoint {
     ($v: ident, $r: literal) => { crate::endpoint::Endpoint::new(crate::http::Verb::$v, $r).unwrap()};
 }
 
+#[allow(unused)]
 pub(crate) use new_endpoint;

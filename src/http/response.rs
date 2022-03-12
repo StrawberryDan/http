@@ -3,7 +3,7 @@ use super::*;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, ExitStatus, Output};
+use std::process::{Command};
 use crate::Error;
 use crate::server::mime_type;
 use super::Header;
