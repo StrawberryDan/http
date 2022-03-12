@@ -89,9 +89,7 @@ pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPRes
     return match &req.verb() {
         HTTPVerb::GET => {
             let path = find_requested_path(req.resource())?;
-            let file = File::open(&path).ok()?;
-            let mime = mime_type(path).unwrap_or(String::from("application/octet-stream")).trim().to_owned();
-            HTTPResponse::from_file(mime.as_str(), file).ok()
+            HTTPResponse::from_file(path).ok()
         }
 
         _ => {
@@ -106,7 +104,7 @@ pub fn mime_type<R: AsRef<Path>>(path: R) -> Result<String, ()> {
         std::process::Command::new("file")
             .arg("--mime-type").arg("-b").arg(path.to_str().unwrap())
             .output().map_err(|_| ())?.stdout
-    ).map_err(|_| ())
+    ).map(|s| s.trim().to_string()).map_err(|_| ())
 }
 
 fn find_requested_path(res: &String) -> Option<PathBuf> {
@@ -134,5 +132,5 @@ fn find_requested_path(res: &String) -> Option<PathBuf> {
 }
 
 fn not_found_response(_: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
-    Some(HTTPResponse::from_html("<html><body><h1>Not Found</h1></body></html>").with_code(404))
+    Some(HTTPResponse::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>").with_code(404))
 }

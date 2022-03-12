@@ -28,12 +28,13 @@ fn test_server() {
 fn gen_rand(_: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
     let random = rand::random::<usize>();
 
-    return Some(HTTPResponse::from_html(format!("<html><body><h1>{}</h1></body></html>", random).as_str()))
+    return Some(HTTPResponse::from_text("text/html", format!("<html><body><h1>{}</h1></body></html>", random).as_str()))
 }
 
 fn print(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
     Some(
-        HTTPResponse::from_html(
+        HTTPResponse::from_text(
+            "mime/html",
             &format!(
                 "<html><body><h1>{}</h1></body></html>",
                 bindings.get(&String::from("value"))?
@@ -44,7 +45,8 @@ fn print(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
 
 fn print_index(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
     Some(
-        HTTPResponse::from_html(
+        HTTPResponse::from_text(
+            "text/html",
             &format!(
                 "<html><body><h1>{}</h1></body></html>",
                 bindings.get(&String::from("value"))?.chars().nth(
@@ -57,7 +59,8 @@ fn print_index(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> 
 
 fn print_color(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
     Some(
-        HTTPResponse::from_html(
+        HTTPResponse::from_text(
+            "text/html",
             &format!(
                 "<html><body><h1 style=\"color: {}\">{}</h1></body></html>",
                 bindings.get("color")?,

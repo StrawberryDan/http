@@ -2,7 +2,10 @@ use super::*;
 
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
+use std::process::{Command, ExitStatus, Output};
 use crate::Error;
+use crate::server::mime_type;
 use super::Header;
 
 pub struct Response {
@@ -28,7 +31,7 @@ impl Response {
         Self { header, .. self }
     }
 
-    pub fn with_header_entry(mut self, key: &str, value: &str) -> Self {
+    pub fn with_header_line(mut self, key: &str, value: &str) -> Self {
         self.header.insert(key.to_owned(), value.to_owned());
         return self;
     }
@@ -37,16 +40,37 @@ impl Response {
         Self { body, .. self }
     }
 
-    pub fn from_html(html: &str) -> Self {
+    pub fn from_text(mime: &str, text: &str) -> Self {
         Self::new().with_code(200)
-            .with_header_entry("Content-Type", "text/html")
-            .with_header_entry("Content-Length", html.as_bytes().len().to_string().as_str())
-            .with_body(html.as_bytes().to_vec())
+            .with_header_line("Content-Type", mime)
+            .with_header_line("Content-Length", text.as_bytes().len().to_string().as_str())
+            .with_body(text.as_bytes().to_vec())
     }
 
-    pub fn from_file(mime: &str, mut file: File) -> Result<Self, Error> {
+    pub fn from_html(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let path = path.as_ref();
+        let php = Command::new("php").arg("-f").arg(path.to_str().unwrap()).output().unwrap();
+
+        Ok(
+            Response::new()
+                .with_code(200)
+                .with_header_line("Content-Type", "text/html")
+                .with_header_line("Content-Length", &php.stdout.len().to_string())
+                .with_body(php.stdout)
+        )
+    }
+
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let mut file = File::open(path.as_ref()).map_err(|e| Error::IOError(e))?;
+        let mime = mime_type(path.as_ref()).unwrap();
+
         let mut body = Vec::new();
+        if mime == "text/html" {
+            return Self::from_html(path);
+        }
+
         file.read_to_end(&mut body).map_err(|e| Error::IOError(e))?;
+
 
         let mut header = Header::new();
         header.insert(
