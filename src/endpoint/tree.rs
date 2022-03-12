@@ -33,6 +33,8 @@ impl Tree {
 
         if !self.root.iter().any(|n| n.0 == root) {
             self.root.push((root.clone(), Node::new()));
+        } else if matches!((&stem, &leaf), (None, None)) {
+            return Err(Error::DuplicateEndpoint);
         }
 
         let mut cursor = &mut self.root.iter_mut().find(|n| n.0 == root).unwrap().1;
