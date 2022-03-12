@@ -12,16 +12,15 @@ use crate::endpoint::URLBindings;
 
 #[test]
 fn test_server() {
-    use crate::endpoint::Endpoint;
+    use crate::endpoint::{Endpoint, new_endpoint as e};
 
     let mut server = HTTPServer::new()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/random").unwrap(), gen_rand).unwrap()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/trash/random").unwrap(), gen_rand).unwrap()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/trash/peggle2/random").unwrap(), gen_rand).unwrap()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/print/<value>").unwrap(), print).unwrap()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/print/<value>/<index>").unwrap(), print_index).unwrap()
-        .with_endpoint(Endpoint::new(HTTPVerb::GET, "/print/color/<color>/<value>").unwrap(), print_color).unwrap();
-
+        .with_endpoint(e!(GET, "/random"), gen_rand)
+        .with_endpoint(e!(GET, "/trash/random"), gen_rand)
+        .with_endpoint(e!(GET, "/trash/peggle2/random"), gen_rand)
+        .with_endpoint(e!(GET, "/print/<value>"), print)
+        .with_endpoint(e!(GET, "/print/<value>/<index>"), print_index)
+        .with_endpoint(e!(GET, "/print/color/<color>/<value>"), print_color);
 
     server.run();
 }

@@ -32,9 +32,9 @@ impl Server {
         Self { socket, .. self}
     }
 
-    pub fn with_endpoint(self, endpoint: Endpoint, callback: Callback) -> Result<Self, Error> {
-        self.endpoints.lock().unwrap().add(endpoint, callback)?;
-        Ok(self)
+    pub fn with_endpoint(self, endpoint: Endpoint, callback: Callback) -> Self {
+        self.endpoints.lock().unwrap().add(endpoint, callback).unwrap();
+        self
     }
 
     pub fn with_handler(self, handler: ConnectionHandler) -> Self {
