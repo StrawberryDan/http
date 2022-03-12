@@ -2,7 +2,8 @@ use super::*;
 
 use std::fs::File;
 use std::io::Read;
-use super::{Header, Error};
+use crate::Error;
+use super::Header;
 
 pub struct Response {
     code: usize,

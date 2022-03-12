@@ -1,46 +1,33 @@
-use std::{fs::File, sync::Arc, path::PathBuf, path::Path};
-use std::ffi::OsStr;
-use std::net::{TcpListener, TcpStream, IpAddr, Ipv4Addr, SocketAddr};
-use std::io::{BufWriter, Read, Write, BufReader, Error as IOError};
-use std::string::FromUtf8Error;
+use std::{fs::File, path::Path, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::io::{BufReader, BufWriter, Write};
+use std::sync::Mutex;
+
 
 use crate::thread_pool::ThreadPool;
-use crate::http::{Response as HTTPResponse, Request as HTTPRequest, Response, Verb as HTTPVerb, Error as HTTPError};
-use crate::Endpoint;
+use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Response, Verb as HTTPVerb};
+use crate::endpoint::{Endpoint, Tree as EndpointTree, URLBindings};
+use crate::Error;
 
-pub type EndpointCallback = Box<dyn Fn(&HTTPRequest) -> Option<HTTPResponse> + Send + Sync + 'static>;
-
-pub struct EndpointTable {
-    registry: Vec<(Endpoint, EndpointCallback)>,
-    default: EndpointCallback,
-    not_found: EndpointCallback,
-}
-
-impl EndpointTable {
-    pub fn new() -> Self {
-        Self {
-            registry: Vec::new(),
-            default: Box::new(handle_file_request),
-            not_found: Box::new(not_found_response)
-        }
-    }
-
-    pub fn with_entry(mut self, endpoint: Endpoint, callback: EndpointCallback) -> Self {
-        self.registry.push((endpoint, callback));
-        return self;
-    }
-}
+pub type Callback = Box<dyn Fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse> + Send + Sync + 'static>;
 
 pub struct Server {
     socket: SocketAddr,
-    endpoints: Arc<EndpointTable>,
+    callbacks: Arc<Mutex<ServerCallbacks>>,
 }
 
 impl Server {
     pub fn new() -> Self {
         Self {
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080),
-            endpoints: Arc::new(EndpointTable::new()),
+            callbacks: Arc::new(Mutex::new(
+                ServerCallbacks {
+                    endpoints: EndpointTree::new(),
+                    default_callback: Box::new(handle_file_request),
+                    not_found_callback: Box::new(not_found_response),
+                }
+            )),
         }
     }
 
@@ -48,8 +35,9 @@ impl Server {
         Self { socket, .. self}
     }
 
-    pub fn with_endpoints(self, endpoints: EndpointTable) -> Self {
-        Self { endpoints: Arc::new(endpoints), .. self }
+    pub fn with_endpoint(mut self, endpoint: Endpoint, callback: Callback) -> Result<Self, Error> {
+        self.callbacks.lock().unwrap().endpoints.add(endpoint, callback)?;
+        Ok(self)
     }
 
     pub fn run(&mut self) {
@@ -60,8 +48,8 @@ impl Server {
         loop {
             match listener.accept() {
                 Ok((con, addr)) => {
-                    let endpoints = self.endpoints.clone();
-                    threads.submit(move || { Self::handle_request(con, addr, endpoints).unwrap(); }).unwrap();
+                    let callbacks = self.callbacks.clone();
+                    threads.submit(move || { Self::handle_request(con, addr, callbacks).unwrap(); }).unwrap();
                 }
 
                 Err(e) => {
@@ -71,7 +59,7 @@ impl Server {
         }
     }
 
-    fn handle_request(mut con: TcpStream, _: SocketAddr, endpoints: Arc<EndpointTable>) -> Result<(), HTTPError> {
+    fn handle_request(mut con: TcpStream, _: SocketAddr, callbacks: Arc<Mutex<ServerCallbacks>>) -> Result<(), Error> {
         loop {
             let mut reader =  BufReader::new(con.try_clone().unwrap());
             let req = match HTTPRequest::from_stream(&mut reader) {
@@ -81,8 +69,13 @@ impl Server {
 
             let mut res = BufWriter::new(con.try_clone().unwrap());
 
-            let response = (endpoints.default)(&req)
-                .unwrap_or((endpoints.not_found)(&req).unwrap());
+            let callbacks = callbacks.lock().unwrap();
+            let callback = callbacks.endpoints.find_match(req.resource());
+
+            let response = match callback {
+                Some((c, b)) => c(&req, &b),
+                None => handle_file_request(&req, &HashMap::new()).or(not_found_response(&req, &HashMap::new()))
+            }.unwrap();
 
             res.write(&response.as_bytes()).unwrap();
             res.flush().unwrap();
@@ -92,10 +85,10 @@ impl Server {
     }
 }
 
-pub fn handle_file_request(req: &HTTPRequest) -> Option<HTTPResponse> {
-    return match &req.endpoint() {
-        (HTTPVerb::GET, res) => {
-            let path = find_requested_path(res)?;
+pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
+    return match &req.verb() {
+        HTTPVerb::GET => {
+            let path = find_requested_path(req.resource())?;
             let file = File::open(&path).ok()?;
             let mime = mime_type(path).unwrap_or(String::from("application/octet-stream")).trim().to_owned();
             HTTPResponse::from_file(mime.as_str(), file).ok()
@@ -105,6 +98,12 @@ pub fn handle_file_request(req: &HTTPRequest) -> Option<HTTPResponse> {
             None
         }
     }
+}
+
+struct ServerCallbacks {
+    endpoints: EndpointTree,
+    default_callback: Callback,
+    not_found_callback: Callback,
 }
 
 pub fn mime_type<R: AsRef<Path>>(path: R) -> Result<String, ()> {
@@ -126,7 +125,7 @@ fn find_requested_path(res: &String) -> Option<PathBuf> {
     if !path.exists() {
         let stem = path.file_stem()?;
         if path.file_stem().is_some() && path.extension().is_none() {
-            let dir = path.parent().unwrap().read_dir().unwrap();
+            let dir = path.parent()?.read_dir().ok()?;
             let candidates: Vec<_> = dir
                 .filter(|f| f.is_ok())
                 .map(|f| unsafe { f.unwrap_unchecked().path() } )
@@ -140,6 +139,6 @@ fn find_requested_path(res: &String) -> Option<PathBuf> {
     return Some(path);
 }
 
-fn not_found_response(_: &HTTPRequest) -> Option<HTTPResponse> {
+fn not_found_response(_: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
     Some(HTTPResponse::from_html("<html><body><h1>Not Found</h1></body></html>").with_code(404))
 }

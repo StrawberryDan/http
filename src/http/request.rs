@@ -1,22 +1,20 @@
-use std::io::{Read, BufRead, BufReader, Cursor};
+use std::io::{BufRead, BufReader, Cursor, Read};
 use std::convert::TryFrom;
 use std::ops::Deref;
 
-use crate::Endpoint;
-use super::{Header, Error, Verb};
+use crate::endpoint::Endpoint;
+use crate::{Error, HTTPVerb};
+use super::{Header, Verb};
 
 #[derive(Debug)]
 pub struct Request {
-    endpoint: Endpoint,
+    verb: HTTPVerb,
+    resource: String,
     header: Header,
     body: Vec<u8>
 }
 
 impl Request {
-    pub fn endpoint(&self) -> &Endpoint {
-        &self.endpoint
-    }
-
     pub fn from_stream<F: BufRead>(stream: &mut F) -> Result<Self, Error> {
         let mut line = String::new();
         let mut lines = Vec::new();
@@ -30,7 +28,7 @@ impl Request {
             }
         }
 
-        let endpoint = {
+        let (verb, resource) = {
             let top = lines.remove(0);
             let top: Vec<&str> = top.split(" ").collect();
             let verb = Verb::try_from(top[0])
@@ -61,11 +59,20 @@ impl Request {
         };
 
         let req = Self {
-            endpoint,
+            verb,
+            resource,
             header,
             body
         };
 
         return Ok(req);
+    }
+
+    pub fn verb(&self) -> Verb {
+        self.verb
+    }
+
+    pub fn resource(&self) -> &String {
+        &self.resource
     }
 }

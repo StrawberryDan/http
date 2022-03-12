@@ -7,7 +7,7 @@ pub use response::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub enum Verb {
     GET,
     HEAD,
@@ -40,10 +40,3 @@ impl TryFrom<&str> for Verb {
 }
 
 pub type Header = HashMap<String, String>;
-
-#[derive(Debug)]
-pub enum Error {
-    RequestParse{msg: &'static str, data: Vec<u8>},
-    InvalidHeader{msg: &'static str},
-    IOError(std::io::Error),
-}
