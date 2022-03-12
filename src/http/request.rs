@@ -8,7 +8,7 @@ use crate::endpoint::URL;
 #[derive(Debug)]
 pub struct Request {
     verb: HTTPVerb,
-    resource: URL,
+    url: URL,
     header: Header,
     body: Vec<u8>
 }
@@ -27,20 +27,17 @@ impl Request {
             }
         }
 
-        let (verb, resource) = {
-            let top = lines.remove(0);
+        let (verb, url) = {
+            let top = lines.get(0).ok_or(Error::RequestParse)?;
             let top: Vec<&str> = top.split(" ").collect();
             let verb = Verb::try_from(top[0])
-                .map_err(|_| Error::RequestParse{
-                    msg: "Invalid HTTP Verb in request",
-                    data: lines.iter().map(|l| l.as_bytes().iter()).flatten().map(|b| *b).collect()
-                })?;
+                .map_err(|_| Error::RequestParse)?;
             let resource = top[1].to_string();
             (verb, URL::from_string(resource)?)
         };
 
         let mut header = Header::new();
-        for line in lines.drain(..) {
+        for line in lines.drain(..).skip(1) {
             let colon = line.find(":").unwrap();
             let key = line[0..colon].to_owned();
             let value = line[colon + 1 ..].trim().to_owned();
@@ -51,7 +48,7 @@ impl Request {
             let content_length: usize = header.get("Content-Length")
                 .unwrap_or(&"0".to_owned())
                 .parse()
-                .map_err(|_| Error::InvalidHeader {msg: "Header element Content-Length had invalid value"})?;
+                .map_err(|_| Error::InvalidHeader)?;
             let mut data = vec![0; content_length];
             stream.read_exact(&mut data[..]).map_err(|e| Error::IOError(e))?;
             data
@@ -59,7 +56,7 @@ impl Request {
 
         let req = Self {
             verb,
-            resource,
+            url,
             header,
             body
         };
@@ -71,7 +68,7 @@ impl Request {
         self.verb
     }
 
-    pub fn resource(&self) -> &URL {
-        &self.resource
+    pub fn url(&self) -> &URL {
+        &self.url
     }
 }

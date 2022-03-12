@@ -11,8 +11,8 @@ pub use server::Server as HTTPServer;
 
 #[derive(Debug)]
 pub enum Error {
-    RequestParse{msg: &'static str, data: Vec<u8>},
-    InvalidHeader{msg: &'static str},
+    RequestParse,
+    InvalidHeader,
     IOError(std::io::Error),
     InvalidEndpoint,
     DuplicateEndpoint,

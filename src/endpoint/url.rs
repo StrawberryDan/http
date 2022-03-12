@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use crate::Error;
 use std::convert::TryFrom;
 use std::fmt::{Debug, Display, Formatter};
+use crate::endpoint::URLSegment;
 
 #[derive(Clone)]
 pub enum Segment {
@@ -44,39 +45,48 @@ impl PartialEq for Segment {
     }
 }
 
+#[derive(Debug)]
 pub struct URL {
-    segments: Vec<Segment>,
+    protocol: String,
+    username: String,
+    password: String,
+    host: String,
+    resource: String,
 }
 
 impl URL {
     pub fn from_string(string: impl Borrow<str>) -> Result<Self, Error> {
         let string = string.borrow();
-        let mut segments: Vec<_> = string.split("/").skip(1).map(|s| Segment::try_from(s)).collect();
-        if segments.iter().any(|s| s.is_err()) {
-            return Err(Error::URLParse);
-        }
+
+        let (protocol, rest) = string.split_once("://").unwrap_or(("", string));
+        let (host, mut resource) = rest.split_once("/").unwrap_or(("", rest));
+
+        let (user, host) = host.split_once("@").unwrap_or(("", host));
+        let (username, password) = user.split_once(":").unwrap_or(("", ""));
 
         Ok(
             Self {
-                segments: segments.into_iter().map(|s| s.unwrap()).collect()
+                protocol: protocol.to_string(),
+                username: username.to_string(),
+                password: password.to_string(),
+                host: host.to_string(),
+                resource: format!("/{}", resource.trim()),
             }
         )
     }
 
-    pub fn segments(&self) -> Vec<&Segment> {
-        self.segments.iter().collect::<Vec<_>>()
+    pub fn resource(&self) -> &String {
+        &self.resource
+    }
+
+    pub fn segments(&self) -> Vec<Segment> {
+        self.resource.split("/").map(|x| URLSegment::try_from(x).unwrap()).collect::<Vec<_>>()
     }
 }
 
 impl Display for URL {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl Debug for URL {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.segments.iter().map(|x| x.to_string()).collect::<Vec<_>>())
+        write!(f, "{}://{}{}", self.protocol, self.host, self.resource)
     }
 }
 

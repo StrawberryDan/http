@@ -65,6 +65,7 @@ impl Tree {
         let cursor = &self.root;
         let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
         let segments = url.segments();
+        if segments.is_empty() {  return None; }
         let (leaf, stem) = segments.split_last().unwrap();
         for seg in stem{
             candidates = candidates.into_iter()

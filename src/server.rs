@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use crate::thread_pool::ThreadPool;
 use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Verb as HTTPVerb};
-use crate::endpoint::{Endpoint, Tree as EndpointTree, URLBindings};
+use crate::endpoint::{Endpoint, Tree as EndpointTree, URL, URLBindings};
 
 pub type Callback = fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse>;
 pub type ConnectionHandler = fn(TcpStream, SocketAddr, Arc<Mutex<EndpointTree>>);
@@ -71,7 +71,7 @@ impl Server {
             let mut res = BufWriter::new(con.try_clone().unwrap());
 
             let endpoints = endpoints.lock().unwrap();
-            let callback = endpoints.find_match(req.resource()).map(|(c, b)| c(&req, &b)).flatten();
+            let callback = endpoints.find_match(req.url()).map(|(c, b)| c(&req, &b)).flatten();
 
             let response = match callback {
                 Some(res) => res,
@@ -87,7 +87,7 @@ impl Server {
 pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
     return match &req.verb() {
         HTTPVerb::GET => {
-            let path = find_requested_path(&req.resource().to_string())?;
+            let path = find_requested_path(req.url())?;
             HTTPResponse::from_file(path).ok()
         }
 
@@ -106,11 +106,11 @@ pub fn mime_type<R: AsRef<Path>>(path: R) -> Result<String, ()> {
     ).map(|s| s.trim().to_string()).map_err(|_| ())
 }
 
-fn find_requested_path(res: &String) -> Option<PathBuf> {
-    let mut path = if res == "/" {
+fn find_requested_path(url: &URL) -> Option<PathBuf> {
+    let mut path = if url.resource() == "/" {
         PathBuf::from("./index")
     } else {
-        PathBuf::from(format!(".{}", res))
+        PathBuf::from(format!(".{}", url.resource()))
     };
 
     if !path.exists() {
