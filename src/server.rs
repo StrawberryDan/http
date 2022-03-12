@@ -6,28 +6,25 @@ use std::sync::Mutex;
 
 
 use crate::thread_pool::ThreadPool;
-use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Response, Verb as HTTPVerb};
+use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Verb as HTTPVerb};
 use crate::endpoint::{Endpoint, Tree as EndpointTree, URLBindings};
 use crate::Error;
 
-pub type Callback = Box<dyn Fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse> + Send + Sync + 'static>;
+pub type Callback = fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse>;
+pub type ConnectionHandler = fn(TcpStream, SocketAddr, Arc<Mutex<EndpointTree>>);
 
 pub struct Server {
     socket: SocketAddr,
-    callbacks: Arc<Mutex<ServerCallbacks>>,
+    endpoints: Arc<Mutex<EndpointTree>>,
+    handler: ConnectionHandler,
 }
 
 impl Server {
     pub fn new() -> Self {
         Self {
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080),
-            callbacks: Arc::new(Mutex::new(
-                ServerCallbacks {
-                    endpoints: EndpointTree::new(),
-                    default_callback: Box::new(handle_file_request),
-                    not_found_callback: Box::new(not_found_response),
-                }
-            )),
+            endpoints: Arc::new(Mutex::new(EndpointTree::new())),
+            handler: Server::default_request_handler,
         }
     }
 
@@ -35,9 +32,13 @@ impl Server {
         Self { socket, .. self}
     }
 
-    pub fn with_endpoint(mut self, endpoint: Endpoint, callback: Callback) -> Result<Self, Error> {
-        self.callbacks.lock().unwrap().endpoints.add(endpoint, callback)?;
+    pub fn with_endpoint(self, endpoint: Endpoint, callback: Callback) -> Result<Self, Error> {
+        self.endpoints.lock().unwrap().add(endpoint, callback)?;
         Ok(self)
+    }
+
+    pub fn with_handler(self, handler: ConnectionHandler) -> Self {
+        Self { handler, .. self }
     }
 
     pub fn run(&mut self) {
@@ -48,8 +49,9 @@ impl Server {
         loop {
             match listener.accept() {
                 Ok((con, addr)) => {
-                    let callbacks = self.callbacks.clone();
-                    threads.submit(move || { Self::handle_request(con, addr, callbacks).unwrap(); }).unwrap();
+                    let endpoints = self.endpoints.clone();
+                    let handler = self.handler.clone();
+                    threads.submit(move || (handler)(con, addr, endpoints) ).unwrap();
                 }
 
                 Err(e) => {
@@ -59,29 +61,27 @@ impl Server {
         }
     }
 
-    fn handle_request(mut con: TcpStream, _: SocketAddr, callbacks: Arc<Mutex<ServerCallbacks>>) -> Result<(), Error> {
+    fn default_request_handler(con: TcpStream, _: SocketAddr, endpoints: Arc<Mutex<EndpointTree>>) {
         loop {
             let mut reader =  BufReader::new(con.try_clone().unwrap());
             let req = match HTTPRequest::from_stream(&mut reader) {
                 Ok(x) => x,
-                Err(e) => break,
+                Err(_) => break,
             };
 
             let mut res = BufWriter::new(con.try_clone().unwrap());
 
-            let callbacks = callbacks.lock().unwrap();
-            let callback = callbacks.endpoints.find_match(req.resource());
+            let endpoints = endpoints.lock().unwrap();
+            let callback = endpoints.find_match(req.resource()).map(|(c, b)| c(&req, &b)).flatten();
 
             let response = match callback {
-                Some((c, b)) => c(&req, &b),
-                None => handle_file_request(&req, &HashMap::new()).or(not_found_response(&req, &HashMap::new()))
-            }.unwrap();
+                Some(res) => res,
+                None => handle_file_request(&req, &HashMap::new()).or(not_found_response(&req, &HashMap::new())).unwrap()
+            };
 
             res.write(&response.as_bytes()).unwrap();
             res.flush().unwrap();
         }
-
-        Ok(())
     }
 }
 
@@ -98,12 +98,6 @@ pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPRes
             None
         }
     }
-}
-
-struct ServerCallbacks {
-    endpoints: EndpointTree,
-    default_callback: Callback,
-    not_found_callback: Callback,
 }
 
 pub fn mime_type<R: AsRef<Path>>(path: R) -> Result<String, ()> {

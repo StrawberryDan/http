@@ -1,8 +1,6 @@
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead};
 use std::convert::TryFrom;
-use std::ops::Deref;
 
-use crate::endpoint::Endpoint;
 use crate::{Error, HTTPVerb};
 use super::{Header, Verb};
 

@@ -56,7 +56,7 @@ pub struct Endpoint {
 
 impl Endpoint {
     pub fn new(verb: HTTPVerb, resource: &str) -> Result<Self, Error> {
-        let mut segments: Vec<_> = resource.split("/")
+        let segments: Vec<_> = resource.split("/")
             .map(|f| URLSegment::try_from(f))
             .skip(1)
             .collect();

@@ -61,7 +61,7 @@ impl Tree {
     pub fn find_match(&self, url: &String) -> Option<(&Callback, Bindings)> {
         let url: Vec<_> = url.split("/").skip(1).collect();
 
-        let mut cursor = &self.root;
+        let cursor = &self.root;
         let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
         for seg in &url[..url.len() - 1] {
             candidates = candidates.into_iter()
