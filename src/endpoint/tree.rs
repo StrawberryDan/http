@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use super::*;
 use crate::Error;
 use crate::server::Callback;
+use bit_vec::BitVec;
 
 pub struct Tree {
     root: Vec<(URLSegment, Node)>,
@@ -61,34 +62,45 @@ impl Tree {
         let url: Vec<_> = url.split("/").skip(1).collect();
 
         let mut cursor = &self.root;
-        let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new())).collect();
+        let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
         for seg in &url[..url.len() - 1] {
             candidates = candidates.into_iter()
                 // Add binding success and new binding table
-                .map(|(node, bindings)| {
+                .map(|(node, bindings, mut priority)| {
                     let (b, b2) = bind(&node.0, seg, &bindings);
-                    (b, node, b2)
+                    if let URLSegment::Static(_) = &node.0 {
+                        priority.push(true);
+                    } else {
+                        priority.push(false);
+                    }
+                    (b, node, b2, priority)
                 })
                 // Remove failed bindings and remove flag
-                .filter(|(b, _, _)| *b).map(|(_, node, bindings)| (node, bindings))
+                .filter(|(b, _, _, _)| *b).map(|(_, node, bindings, priority)| (node, bindings, priority))
                 // Expand children and flatten
-                .map(|(node, bindings)| node.1.children.iter().map(move |node| (node.clone(), bindings.clone())))
+                .map(|(node, bindings, priority)| node.1.children.iter().map(move |node| (node.clone(), bindings.clone(), priority.clone())))
                 .flatten()
                 .collect();
         }
         // Bind final segment without expanding children
         candidates = candidates.into_iter()
-            .map(|(node, bindings)| {
+            .map(|(node, bindings, mut priority)| {
                 let (b, b2) = bind(&node.0, url.last().unwrap(), &bindings);
-                (b, node, b2)
+                if let URLSegment::Static(_) = &node.0 {
+                    priority.push(true);
+                } else {
+                    priority.push(false);
+                }
+                (b, node, b2, priority)
             })
-            .filter(|(b, _, _)| *b)
-            .map(|(_, node, bindings)| (node, bindings))
+            .filter(|(b, _, _, _)| *b)
+            .map(|(_, node, bindings, priority)| (node, bindings, priority))
             .collect();
 
         if candidates.is_empty() {
             None
         } else {
+            candidates.sort_by(|(_, _, a), (_, _, b)| a.cmp(b).reverse());
             let callback = candidates[0].0.1.value.as_ref().unwrap();
             let bindings = candidates[0].1.clone();
             return Some((callback, bindings));

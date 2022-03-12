@@ -1,4 +1,5 @@
 extern crate rand;
+extern crate bit_vec;
 
 pub mod thread_pool;
 pub mod http;
@@ -20,7 +21,9 @@ fn test_server() {
         .with_endpoint(Endpoint::new(Verb::GET, "/trash/random").unwrap(), Box::new(gen_rand)).unwrap()
         .with_endpoint(Endpoint::new(Verb::GET, "/trash/peggle2/random").unwrap(), Box::new(gen_rand)).unwrap()
         .with_endpoint(Endpoint::new(Verb::GET, "/print/<value>").unwrap(), Box::new(print)).unwrap()
-        .with_endpoint(Endpoint::new(Verb::GET, "/print/<value>/<index>").unwrap(), Box::new(print_index)).unwrap();
+        .with_endpoint(Endpoint::new(Verb::GET, "/print/<value>/<index>").unwrap(), Box::new(print_index)).unwrap()
+        .with_endpoint(Endpoint::new(Verb::GET, "/print/red/<value>").unwrap(), Box::new(print_red)).unwrap();
+
 
     server.run();
 }
@@ -50,6 +53,17 @@ fn print_index(req: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse
                 bindings.get(&String::from("value")).unwrap().chars().nth(
                     bindings.get(&"index".to_string()).unwrap().parse::<usize>().unwrap()
                 ).unwrap()
+            )
+        )
+    )
+}
+
+fn print_red(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
+    Some(
+        HTTPResponse::from_html(
+            &format!(
+                "<html><body><h1 style=\"color: red\">{}</h1></body></html>",
+                bindings.get("value").unwrap()
             )
         )
     )
