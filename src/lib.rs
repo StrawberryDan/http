@@ -16,6 +16,7 @@ pub enum Error {
     IOError(std::io::Error),
     InvalidEndpoint,
     DuplicateEndpoint,
+    URLParse
 }
 
 #[cfg(test)]

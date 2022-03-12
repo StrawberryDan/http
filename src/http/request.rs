@@ -3,11 +3,12 @@ use std::convert::TryFrom;
 
 use crate::{Error, HTTPVerb};
 use super::{Header, Verb};
+use crate::endpoint::URL;
 
 #[derive(Debug)]
 pub struct Request {
     verb: HTTPVerb,
-    resource: String,
+    resource: URL,
     header: Header,
     body: Vec<u8>
 }
@@ -35,7 +36,7 @@ impl Request {
                     data: lines.iter().map(|l| l.as_bytes().iter()).flatten().map(|b| *b).collect()
                 })?;
             let resource = top[1].to_string();
-            (verb, resource)
+            (verb, URL::from_string(resource)?)
         };
 
         let mut header = Header::new();
@@ -70,7 +71,7 @@ impl Request {
         self.verb
     }
 
-    pub fn resource(&self) -> &String {
+    pub fn resource(&self) -> &URL {
         &self.resource
     }
 }

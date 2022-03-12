@@ -87,7 +87,7 @@ impl Server {
 pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
     return match &req.verb() {
         HTTPVerb::GET => {
-            let path = find_requested_path(req.resource())?;
+            let path = find_requested_path(&req.resource().to_string())?;
             HTTPResponse::from_file(path).ok()
         }
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use super::*;
+use super::url::{Segment as URLSegment, URL};
 use crate::Error;
 use crate::server::Callback;
 use bit_vec::BitVec;
@@ -60,16 +61,16 @@ impl Tree {
         Ok(())
     }
 
-    pub fn find_match(&self, url: &String) -> Option<(&Callback, Bindings)> {
-        let url: Vec<_> = url.split("/").skip(1).collect();
-
+    pub fn find_match(&self, url: &URL) -> Option<(&Callback, Bindings)> {
         let cursor = &self.root;
         let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
-        for seg in &url[..url.len() - 1] {
+        let segments = url.segments();
+        let (leaf, stem) = segments.split_last().unwrap();
+        for seg in stem{
             candidates = candidates.into_iter()
                 // Add binding success and new binding table
                 .map(|(node, bindings, mut priority)| {
-                    let (b, b2) = bind(&node.0, seg, &bindings);
+                    let (b, b2) = bind(&node.0, &seg.to_string(), &bindings);
                     if let URLSegment::Static(_) = &node.0 {
                         priority.push(true);
                     } else {
@@ -87,7 +88,7 @@ impl Tree {
         // Bind final segment without expanding children
         candidates = candidates.into_iter()
             .map(|(node, bindings, mut priority)| {
-                let (b, b2) = bind(&node.0, url.last().unwrap(), &bindings);
+                let (b, b2) = bind(&node.0, &leaf.to_string(), &bindings);
                 if let URLSegment::Static(_) = &node.0 {
                     priority.push(true);
                 } else {
