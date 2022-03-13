@@ -17,13 +17,25 @@ impl Request {
     pub fn from_stream<F: BufRead>(stream: &mut F) -> Result<Self, Error> {
         let mut line = String::new();
         let mut lines = Vec::new();
-        
-        while let Ok(_) = stream.read_line(&mut line) {
-            if line == "\r\n" {
-                break;
-            } else {
-                lines.push(line.clone());
-                line.clear();
+
+        loop {
+            match stream.read_line(&mut line) {
+                Ok(n) if n > 0 => {
+                    if line == "\r\n" {
+                        break;
+                    } else {
+                    lines.push(line.clone());
+                    line.clear();
+                    }
+                }
+
+                Ok(_) => {
+                    return Err(Error::ConnectionClosed);
+                }
+
+                Err(e) => {
+                    return Err(Error::IOError(e));
+                }
             }
         }
 

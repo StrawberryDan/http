@@ -15,22 +15,25 @@ pub enum Error {
     IOError(std::io::Error),
     InvalidEndpoint,
     DuplicateEndpoint,
-    URLParse
+    URLParse,
+    ConnectionClosed,
 }
 
 #[cfg(test)]
 mod tests {
     use crate::endpoint::{endpoint as e, URLBindings};
+    use crate::http::{DefaultHandler};
     use super::*;
 
     #[test]
     fn test_server() {
-        let mut server = HTTPServer::new()
+        let handler = DefaultHandler::new()
             .with_endpoint(e!(GET, "/random"), gen_rand)
             .with_endpoint(e!(GET, "/print/<value>"), print)
             .with_endpoint(e!(GET, "/print/<value>/<index>"), print_index)
             .with_endpoint(e!(GET, "/print/color/<color>/<value>"), print_color);
 
+        let mut server = HTTPServer::new(handler);
         server.run();
     }
 
