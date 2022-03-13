@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use super::*;
-use super::url::{Segment as URLSegment, URL};
+use super::url::{Segment, URL};
 use crate::Error;
 use crate::http::RequestCallback;
 use bit_vec::BitVec;
@@ -61,28 +61,15 @@ impl Tree {
         Ok(())
     }
 
-    pub fn find_match(&self, url: &URL) -> Option<(&RequestCallback, Bindings)> {
-        let cursor = &self.root;
-        let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
+    pub fn find_match(&self, url: &URL) -> Option<(RequestCallback, Bindings)> {
+        let mut candidates: Vec<_> = self.root.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
         let segments = url.segments();
         if segments.is_empty() {  return None; }
         let (leaf, stem) = segments.split_last().unwrap();
         for seg in stem{
-            candidates = candidates.into_iter()
-                // Add binding success and new binding table
-                .map(|(node, bindings, mut priority)| {
-                    let (b, b2) = bind(&node.0, &seg.to_string(), &bindings);
-                    if let URLSegment::Static(_) = &node.0 {
-                        priority.push(true);
-                    } else {
-                        priority.push(false);
-                    }
-                    (b, node, b2, priority)
-                })
-                // Remove failed bindings and remove flag
-                .filter(|(b, _, _, _)| *b).map(|(_, node, bindings, priority)| (node, bindings, priority))
+            candidates = bind_and_filter(candidates.into_iter(), seg)
                 // Expand children and flatten
-                .map(|(node, bindings, priority)| node.1.children.iter().map(move |node| (node.clone(), bindings.clone(), priority.clone())))
+                .map(|(node, bindings, priority)| node.1.children.iter().map(move |node| (node, bindings.clone(), priority.clone())))
                 .flatten()
                 .collect();
         }
@@ -105,11 +92,26 @@ impl Tree {
             None
         } else {
             candidates.sort_by(|(_, _, a), (_, _, b)| a.cmp(b).reverse());
-            let callback = candidates[0].0.1.value.as_ref().unwrap();
+            let callback = candidates[0].0.1.value.unwrap();
             let bindings = candidates[0].1.clone();
             return Some((callback, bindings));
         }
     }
+}
+
+fn bind_and_filter<'r>(input: impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r, seg: &'r Segment) -> impl Iterator<Item = (&(Segment, Node), Bindings, BitVec)> + 'r {
+    // Add binding success and new binding table
+    input.map(move |(node, bindings, mut priority)| {
+        let (b, b2) = bind(&node.0, &seg.to_string(), &bindings);
+        if let URLSegment::Static(_) = &node.0 {
+            priority.push(true);
+        } else {
+            priority.push(false);
+        }
+        (b, node, b2, priority)
+    })
+    // Remove failed bindings and remove flag
+    .filter(|(b, _, _, _)| *b).map(|(_, node, bindings, priority)| (node, bindings, priority))
 }
 
 fn bind(seg: &URLSegment, val: &str, bindings: &Bindings) -> (bool, Bindings) {
