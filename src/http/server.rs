@@ -5,7 +5,7 @@ use std::io::{BufReader, BufWriter, Write};
 
 use crate::thread_pool::ThreadPool;
 use crate::http::{Request, Response, Method};
-use crate::http::endpoint::{Endpoint, Tree as EndpointTree, Bindings as EndpointBindings};
+use crate::http::endpoint::{Endpoint, ParseTree as EndpointTree, Bindings as EndpointBindings};
 use crate::{Error, URL};
 use crate::http::endpoint::Callback as EndpointCallback;
 

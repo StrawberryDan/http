@@ -43,10 +43,6 @@ impl URL {
     pub fn resource(&self) -> &String {
         &self.resource
     }
-
-    pub fn resource_split(&self) -> Vec<String> {
-        self.resource.split("/").skip(1).map(|s| s.to_string()).collect()
-    }
 }
 
 impl URL {
