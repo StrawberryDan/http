@@ -1,4 +1,4 @@
-use std::{path::Path, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::io::{BufReader, BufWriter, Write};
@@ -6,10 +6,10 @@ use std::sync::Mutex;
 
 
 use crate::thread_pool::ThreadPool;
-use crate::http::{Request as HTTPRequest, Response as HTTPResponse, Verb as HTTPVerb};
+use crate::http::{Request, Response, Method};
 use crate::endpoint::{Endpoint, Tree as EndpointTree, URL, URLBindings};
 
-pub type Callback = fn(&HTTPRequest, &URLBindings) -> Option<HTTPResponse>;
+pub type RequestCallback = fn(&Request, &URLBindings) -> Option<Response>;
 pub type ConnectionHandler = fn(TcpStream, SocketAddr, Arc<Mutex<EndpointTree>>);
 
 pub struct Server {
@@ -31,7 +31,7 @@ impl Server {
         Self { socket, .. self}
     }
 
-    pub fn with_endpoint(self, endpoint: Endpoint, callback: Callback) -> Self {
+    pub fn with_endpoint(self, endpoint: Endpoint, callback: RequestCallback) -> Self {
         self.endpoints.lock().unwrap().add(endpoint, callback).unwrap();
         self
     }
@@ -63,7 +63,7 @@ impl Server {
     fn default_request_handler(con: TcpStream, _: SocketAddr, endpoints: Arc<Mutex<EndpointTree>>) {
         loop {
             let mut reader =  BufReader::new(con.try_clone().unwrap());
-            let req = match HTTPRequest::from_stream(&mut reader) {
+            let req = match Request::from_stream(&mut reader) {
                 Ok(x) => x,
                 Err(_) => break,
             };
@@ -84,26 +84,17 @@ impl Server {
     }
 }
 
-pub fn handle_file_request(req: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
+pub fn handle_file_request(req: &Request, _: &URLBindings) -> Option<Response> {
     return match &req.verb() {
-        HTTPVerb::GET => {
+        Method::GET => {
             let path = find_requested_path(req.url())?;
-            HTTPResponse::from_file(path).ok()
+            Response::from_file(path).ok()
         }
 
         _ => {
             None
         }
     }
-}
-
-pub fn mime_type<R: AsRef<Path>>(path: R) -> Result<String, ()> {
-    let path = path.as_ref();
-    String::from_utf8(
-        std::process::Command::new("file")
-            .arg("--mime-type").arg("-b").arg(path.to_str().unwrap())
-            .output().map_err(|_| ())?.stdout
-    ).map(|s| s.trim().to_string()).map_err(|_| ())
 }
 
 fn find_requested_path(url: &URL) -> Option<PathBuf> {
@@ -130,6 +121,6 @@ fn find_requested_path(url: &URL) -> Option<PathBuf> {
     return Some(path);
 }
 
-fn not_found_response(_: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
-    Some(HTTPResponse::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>").with_code(404))
+fn not_found_response(_: &Request, _: &URLBindings) -> Option<Response> {
+    Some(Response::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>").with_code(404))
 }

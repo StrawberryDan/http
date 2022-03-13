@@ -3,11 +3,10 @@ extern crate bit_vec;
 
 pub mod thread_pool;
 pub mod http;
-pub mod server;
 pub mod endpoint;
 
-pub use http::{Verb as HTTPVerb, Response as HTTPResponse, Request as HTTPRequest};
-pub use server::Server as HTTPServer;
+pub use http::{Request as HTTPRequest, Response as HTTPResponse, Method as HTTPVerb};
+pub use http::Server as HTTPServer;
 
 #[derive(Debug)]
 pub enum Error {
@@ -21,15 +20,13 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::endpoint::{URLBindings, new_endpoint as e};
+    use crate::endpoint::{endpoint as e, URLBindings};
     use super::*;
 
     #[test]
     fn test_server() {
         let mut server = HTTPServer::new()
             .with_endpoint(e!(GET, "/random"), gen_rand)
-            .with_endpoint(e!(GET, "/trash/random"), gen_rand)
-            .with_endpoint(e!(GET, "/trash/peggle2/random"), gen_rand)
             .with_endpoint(e!(GET, "/print/<value>"), print)
             .with_endpoint(e!(GET, "/print/<value>/<index>"), print_index)
             .with_endpoint(e!(GET, "/print/color/<color>/<value>"), print_color);

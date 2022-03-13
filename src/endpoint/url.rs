@@ -59,7 +59,7 @@ impl URL {
         let string = string.borrow();
 
         let (protocol, rest) = string.split_once("://").unwrap_or(("", string));
-        let (host, mut resource) = rest.split_once("/").unwrap_or(("", rest));
+        let (host, resource) = rest.split_once("/").unwrap_or(("", rest));
 
         let (user, host) = host.split_once("@").unwrap_or(("", host));
         let (username, password) = user.split_once(":").unwrap_or(("", ""));

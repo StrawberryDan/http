@@ -5,7 +5,7 @@ use std::io::Read;
 use std::path::Path;
 use std::process::{Command};
 use crate::Error;
-use crate::server::mime_type;
+use crate::http::file_mime;
 use super::Header;
 
 pub struct Response {
@@ -62,7 +62,7 @@ impl Response {
 
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut file = File::open(path.as_ref()).map_err(|e| Error::IOError(e))?;
-        let mime = mime_type(path.as_ref()).unwrap();
+        let mime = file_mime(path.as_ref()).unwrap();
 
         let mut body = Vec::new();
         if mime == "text/html" {

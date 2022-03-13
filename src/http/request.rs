@@ -2,7 +2,7 @@ use std::io::{BufRead};
 use std::convert::TryFrom;
 
 use crate::{Error, HTTPVerb};
-use super::{Header, Verb};
+use super::{Header, Method};
 use crate::endpoint::URL;
 
 #[derive(Debug)]
@@ -30,7 +30,7 @@ impl Request {
         let (verb, url) = {
             let top = lines.get(0).ok_or(Error::RequestParse)?;
             let top: Vec<&str> = top.split(" ").collect();
-            let verb = Verb::try_from(top[0])
+            let verb = Method::try_from(top[0])
                 .map_err(|_| Error::RequestParse)?;
             let resource = top[1].to_string();
             (verb, URL::from_string(resource)?)
@@ -64,7 +64,7 @@ impl Request {
         return Ok(req);
     }
 
-    pub fn verb(&self) -> Verb {
+    pub fn verb(&self) -> Method {
         self.verb
     }
 

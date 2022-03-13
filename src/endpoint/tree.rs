@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use super::*;
 use super::url::{Segment as URLSegment, URL};
 use crate::Error;
-use crate::server::Callback;
+use crate::http::RequestCallback;
 use bit_vec::BitVec;
 
 pub struct Tree {
@@ -16,7 +16,7 @@ impl Tree {
         }
     }
 
-    pub fn add(&mut self, mut endpoint: Endpoint, callback: Callback) -> Result<(), Error> {
+    pub fn add(&mut self, mut endpoint: Endpoint, callback: RequestCallback) -> Result<(), Error> {
         let (root, stem, leaf) = match endpoint.resource.len() {
             0 => panic!("Attempt to add endpoint to tree with no resource specified"),
             1 => (endpoint.resource.remove(0), None, None),
@@ -61,7 +61,7 @@ impl Tree {
         Ok(())
     }
 
-    pub fn find_match(&self, url: &URL) -> Option<(&Callback, Bindings)> {
+    pub fn find_match(&self, url: &URL) -> Option<(&RequestCallback, Bindings)> {
         let cursor = &self.root;
         let mut candidates: Vec<_> = cursor.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
         let segments = url.segments();
@@ -124,7 +124,7 @@ fn bind(seg: &URLSegment, val: &str, bindings: &Bindings) -> (bool, Bindings) {
 }
 
 struct Node {
-    value: Option<Callback>,
+    value: Option<RequestCallback>,
     children: Vec<(URLSegment, Node)>,
 }
 

@@ -1,14 +1,17 @@
-pub mod request;
-pub mod response;
+mod request;
+mod response;
+mod server;
 
 pub use request::*;
 pub use response::*;
+pub use server::*;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::path::Path;
 
 #[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
-pub enum Verb {
+pub enum Method {
     GET,
     HEAD,
     POST,
@@ -20,7 +23,7 @@ pub enum Verb {
     PATCH,
 }
 
-impl TryFrom<&str> for Verb {
+impl TryFrom<&str> for Method {
     type Error = ();
 
     fn try_from(from: &str) -> Result<Self, Self::Error> {
@@ -40,3 +43,12 @@ impl TryFrom<&str> for Verb {
 }
 
 pub type Header = HashMap<String, String>;
+
+pub fn file_mime<R: AsRef<Path>>(path: R) -> Result<String, ()> {
+    let path = path.as_ref();
+    String::from_utf8(
+        std::process::Command::new("file")
+            .arg("--mime-type").arg("-b").arg(path.to_str().unwrap())
+            .output().map_err(|_| ())?.stdout
+    ).map(|s| s.trim().to_string()).map_err(|_| ())
+}

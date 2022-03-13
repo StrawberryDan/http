@@ -4,7 +4,7 @@ mod url;
 use std::convert::TryFrom;
 
 use crate::Error;
-use crate::http::Verb as HTTPVerb;
+use crate::http::Method as HTTPVerb;
 
 pub use tree::Tree;
 pub use tree::Bindings as URLBindings;
@@ -35,9 +35,9 @@ impl Endpoint {
 }
 
 #[macro_export]
-macro_rules! new_endpoint {
-    ($v: ident, $r: literal) => { crate::endpoint::Endpoint::new(crate::http::Verb::$v, $r).unwrap()};
+macro_rules! endpoint {
+    ($v: ident, $r: literal) => { crate::endpoint::Endpoint::new(crate::http::Method::$v, $r).unwrap()};
 }
 
 #[allow(unused)]
-pub(crate) use new_endpoint;
+pub(crate) use endpoint;
