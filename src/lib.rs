@@ -3,10 +3,10 @@ extern crate bit_vec;
 
 pub mod thread_pool;
 pub mod http;
-pub mod endpoint;
+pub mod url;
 
-pub use http::{Request as HTTPRequest, Response as HTTPResponse, Method as HTTPVerb};
-pub use http::Server as HTTPServer;
+pub use http::{Method as HTTPVerb, Request as HTTPRequest, Response as HTTPResponse, Server as HTTPServer};
+pub use url::URL;
 
 #[derive(Debug)]
 pub enum Error {
@@ -21,8 +21,8 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::endpoint::{endpoint as e, URLBindings};
-    use crate::http::{DefaultHandler};
+    use crate::http::endpoint::{endpoint as e, Bindings as EndpointBindings};
+    use crate::http::DefaultHandler;
     use super::*;
 
     #[test]
@@ -37,16 +37,16 @@ mod tests {
         server.run();
     }
 
-    fn gen_rand(_: &HTTPRequest, _: &URLBindings) -> Option<HTTPResponse> {
+    fn gen_rand(_: &HTTPRequest, _: &EndpointBindings) -> Option<HTTPResponse> {
         let random = rand::random::<usize>();
 
         return Some(HTTPResponse::from_text("text/html", format!("<html><body><h1>{}</h1></body></html>", random).as_str()))
     }
 
-    fn print(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
+    fn print(_: &HTTPRequest, bindings: &EndpointBindings) -> Option<HTTPResponse> {
         Some(
             HTTPResponse::from_text(
-                "mime/html",
+                "text/html",
                 &format!(
                     "<html><body><h1>{}</h1></body></html>",
                     bindings.get(&String::from("value"))?
@@ -55,7 +55,7 @@ mod tests {
         )
     }
 
-    fn print_index(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
+    fn print_index(_: &HTTPRequest, bindings: &EndpointBindings) -> Option<HTTPResponse> {
         Some(
             HTTPResponse::from_text(
                 "text/html",
@@ -69,7 +69,7 @@ mod tests {
         )
     }
 
-    fn print_color(_: &HTTPRequest, bindings: &URLBindings) -> Option<HTTPResponse> {
+    fn print_color(_: &HTTPRequest, bindings: &EndpointBindings) -> Option<HTTPResponse> {
         Some(
             HTTPResponse::from_text(
                 "text/html",

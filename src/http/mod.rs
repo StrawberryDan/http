@@ -1,6 +1,7 @@
 mod request;
 mod response;
 mod server;
+pub mod endpoint;
 
 pub use request::*;
 pub use response::*;

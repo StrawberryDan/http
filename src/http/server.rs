@@ -5,10 +5,9 @@ use std::io::{BufReader, BufWriter, Write};
 
 use crate::thread_pool::ThreadPool;
 use crate::http::{Request, Response, Method};
-use crate::endpoint::{Endpoint, Tree as EndpointTree, URL, URLBindings};
-use crate::Error;
-
-pub type RequestCallback = fn(&Request, &URLBindings) -> Option<Response>;
+use crate::http::endpoint::{Endpoint, Tree as EndpointTree, Bindings as EndpointBindings};
+use crate::{Error, URL};
+use crate::http::endpoint::Callback as EndpointCallback;
 
 pub struct Server<H: Handler + Send + Sync + 'static> {
     socket: SocketAddr,
@@ -62,12 +61,12 @@ impl DefaultHandler {
         }
     }
 
-    pub fn with_endpoint(mut self, endpoint: Endpoint, callback: RequestCallback) -> Self {
+    pub fn with_endpoint(mut self, endpoint: Endpoint, callback: EndpointCallback) -> Self {
         self.endpoints.add(endpoint, callback).unwrap();
         self
     }
 
-    pub fn handle_file_request(req: &Request, _: &URLBindings) -> Option<Response> {
+    pub fn handle_file_request(req: &Request, _: &EndpointBindings) -> Option<Response> {
         return match &req.verb() {
             Method::GET => {
                 let path = Self::find_requested_path(req.url())?;
@@ -104,7 +103,7 @@ impl DefaultHandler {
         return Some(path);
     }
 
-    fn not_found_response(_: &Request, _: &URLBindings) -> Option<Response> {
+    fn not_found_response(_: &Request, _: &EndpointBindings) -> Option<Response> {
         Some(Response::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>").with_code(404))
     }
 }
