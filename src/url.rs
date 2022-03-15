@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::fmt::Display;
+
 use crate::Error;
 
 #[derive(Debug)]

@@ -14,6 +14,12 @@ pub struct Server<H: Handler + Send + Sync + 'static> {
     handler: Arc<H>
 }
 
+impl Server<DefaultHandler> {
+    pub fn default_web() -> Self {
+        Server::new(DefaultHandler::new())
+    }
+}
+
 impl<H: Handler + Send + Sync + 'static> Server<H> {
     pub fn new(handler: H) -> Self {
         Self {
@@ -71,6 +77,11 @@ impl DefaultHandler {
             Method::GET => {
                 let path = Self::find_requested_path(req.url())?;
                 Response::from_file(path).ok()
+            }
+
+            Method::TRACE => {
+                let path = Self::find_requested_path(req.url())?;
+                Some(Response::from_file(path).ok()?.with_body(Vec::new()))
             }
 
             _ => {

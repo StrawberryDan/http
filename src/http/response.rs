@@ -71,7 +71,6 @@ impl Response {
 
         file.read_to_end(&mut body).map_err(|e| Error::IOError(e))?;
 
-
         let mut header = Header::new();
         header.insert(
             String::from("Content-Type"),
