@@ -1,16 +1,18 @@
 mod request;
 mod response;
 mod endpoint;
+mod stream;
 
+pub use stream::*;
 pub use request::*;
 pub use response::*;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::io::{BufReader, BufWriter, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use endpoint::*;
+
 use crate::server::Service;
 use crate::URL;
 
@@ -125,21 +127,19 @@ impl WebService {
 impl Service for WebService {
     fn handle_connection(&self, con: TcpStream, client: SocketAddr) {
         println!("Started serving client: {}", client);
+        let mut stream = Stream::new(con);
         loop {
-            let mut reader = BufReader::new(con.try_clone().unwrap());
-            let req = match Request::from_stream(&mut reader) {
+            let req = match stream.recv() {
                 Ok(x) => x,
                 Err(e) => {
                     if let Error::ConnectionClosed = e {
-                        println!("Stopped serving client: {}", client);
+                        break;
                     } else {
                         eprintln!("Error receiving request! Error: {:?}", e);
+                        break;
                     }
-                    return;
                 }
             };
-
-            let mut res = BufWriter::new(con.try_clone().unwrap());
 
             let callback = self.endpoints.find_match(req.url()).map(|(c, b)| c(&req, &b)).flatten();
 
@@ -148,9 +148,17 @@ impl Service for WebService {
                 None => Self::handle_file_request(&req, &HashMap::new()).or(Self::not_found_response(&req, &HashMap::new())).unwrap()
             };
 
-            res.write(&response.as_bytes()).unwrap();
-            res.flush().unwrap();
+            match stream.send(response) {
+                Ok(_) => (),
+                Err(Error::ConnectionClosed) => { break; }
+                Err(e) =>  {
+                    eprintln!("Error sending response! Error: {:?}", e);
+                    break;
+                }
+            }
         }
+
+        println!("Stopped serving client: {}", client);
     }
 }
 
