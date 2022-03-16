@@ -1,7 +1,5 @@
 use std::borrow::Borrow;
 
-use crate::Error;
-
 #[derive(Debug)]
 pub struct URL {
     protocol: Option<String>,
@@ -24,8 +22,8 @@ impl URL {
         }
     }
 
-    pub fn from_string(s: &str) -> Result<URL, Error> {
-        if !s.is_ascii() || s.is_empty() { return Err(Error::URLParse); }
+    pub fn from_string(s: &str) -> Result<URL, ()> {
+        if !s.is_ascii() || s.is_empty() { return Err(()); }
 
         let mut s = s.to_string();
         while let Some(i) = s.find("%") {
@@ -35,13 +33,13 @@ impl URL {
                 (i+3..s.len()).map(|n| s.chars().nth(n).unwrap()).collect::<String>()
             );
 
-            let decoded = u8::from_str_radix(&middle, 16).map_err(|_| Error::URLParse)? as char;
+            let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ())? as char;
             s = format!("{}{}{}", prefix, decoded, suffix);
         }
 
         let (protocol, s) = s.split_once("://").unwrap_or(("", &s));
         let (user, s) = s.split_once("@").unwrap_or(("", s));
-        let (host, resource) = s.split_once("/").ok_or(Error::URLParse)?;
+        let (host, resource) = s.split_once("/").ok_or(())?;
         let (host, port) = host.split_once(":").unwrap_or((host, ""));
         let (username, password) = user.split_once(":").unwrap_or(("", ""));
 
@@ -50,7 +48,7 @@ impl URL {
             username: if username.is_empty() { None } else { Some(user    .to_string()) },
             password: if password.is_empty() { None } else { Some(password.to_string()) },
             host:     if host    .is_empty() { None } else { Some(host    .to_string()) },
-            port:     if port    .is_empty() { None } else { Some(port    .parse().map_err(|_| Error::URLParse)? ) },
+            port:     if port    .is_empty() { None } else { Some(port    .parse().map_err(|_| ())? ) },
             resource: format!("/{}", resource)
         } )
     }
@@ -108,7 +106,7 @@ impl URL {
         }
     }
 
-    pub fn as_string(&self) -> Result<String, Error> {
+    pub fn as_string(&self) -> Result<String, ()> {
         let mut s = String::new();
 
         if let Some(p) = &self.protocol {
@@ -132,7 +130,7 @@ impl URL {
         if s.is_ascii() {
             Ok(s)
         } else {
-            Err(Error::URLParse)
+            Err(())
         }
     }
 }

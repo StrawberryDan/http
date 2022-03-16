@@ -1,12 +1,12 @@
 use std::io::{BufRead};
 use std::convert::TryFrom;
 
-use crate::{Error, HTTPVerb, URL};
-use super::{Header, Method};
+use super::*;
+use crate::URL;
 
 #[derive(Debug)]
 pub struct Request {
-    verb: HTTPVerb,
+    verb: Method,
     url: URL,
     header: Header,
     body: Vec<u8>
@@ -43,8 +43,8 @@ impl Request {
             let top: Vec<&str> = top.split(" ").collect();
             let verb = Method::try_from(top[0])
                 .map_err(|_| Error::RequestParse)?;
-            let resource = top[1].to_string();
-            (verb, URL::from_string(&resource)?)
+            let resource = URL::from_string(top[1]).map_err(|_| Error::URLParse)?;
+            (verb, resource)
         };
 
         let mut header = Header::new();

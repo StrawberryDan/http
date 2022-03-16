@@ -3,7 +3,7 @@ mod parse;
 use std::fmt::{Display, Formatter};
 use crate::http::{Method, Request, Response};
 
-pub use parse::ParseTree;
+pub use parse::EndpointTable;
 pub use parse::Bindings;
 
 pub type Callback = fn(&Request, &Bindings) -> Option<Response>;

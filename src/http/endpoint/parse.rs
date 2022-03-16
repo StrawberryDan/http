@@ -1,7 +1,11 @@
 use std::collections::HashMap;
-use super::*;
-use crate::{Error, url::URL};
+
 use bit_vec::BitVec;
+
+use super::*;
+use crate::http::Error;
+use crate::URL;
+
 
 #[derive(Clone)]
 enum Segment {
@@ -27,11 +31,11 @@ fn to_segments(str: &str) -> Vec<Segment> {
     ).collect()
 }
 
-pub struct ParseTree {
+pub struct EndpointTable {
     root: Vec<(Segment, Node)>,
 }
 
-impl ParseTree {
+impl EndpointTable {
     pub fn new() -> Self {
         Self {
             root: Vec::new(),

@@ -4,8 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command};
-use crate::Error;
-use crate::http::file_mime;
+use super::{file_mime, Error};
 use super::Header;
 
 pub struct Response {
