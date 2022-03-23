@@ -1,28 +1,30 @@
-use std::io::{BufReader, BufWriter, Write};
-use std::net::TcpStream;
+use std::io::{Read, Write};
+
 use crate::http::{Error, Request, Response};
 
-pub struct Stream {
-    reader: BufReader<TcpStream>,
-    writer: BufWriter<TcpStream>,
+pub struct Stream<S> where S: Read + Write {
+    connection: S,
 }
 
-impl Stream {
-    pub fn new(connection: TcpStream) -> Self {
+impl<S: Read + Write> Stream<S> {
+    pub fn new(connection: S) -> Self {
         Self {
-            reader: BufReader::new(connection.try_clone().unwrap()),
-            writer: BufWriter::new(connection),
+            connection
         }
     }
 
     pub fn recv(&mut self) -> Result<Request, Error> {
-        Request::from_stream(&mut self.reader)
+        Request::from_stream(&mut self.connection)
     }
 
     pub fn send(&mut self, response: Response) -> Result<(), Error> {
-        self.writer.write_all(&response.as_bytes()).map_err(|e| Error::IOError(e))?;
-        self.writer.flush().map_err(|e| Error::IOError(e))?;
+        self.connection.write_all(&response.as_bytes()).map_err(|e| Error::IOError(e))?;
+        self.connection.flush().map_err(|e| Error::IOError(e))?;
         Ok(())
+    }
+
+    pub fn into_inner(self) -> S {
+        self.connection
     }
 
 }

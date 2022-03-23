@@ -4,7 +4,7 @@ use bit_vec::BitVec;
 
 use super::*;
 use crate::http::Error;
-use crate::URL;
+use crate::url::URL;
 
 
 #[derive(Clone)]

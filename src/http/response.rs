@@ -4,8 +4,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command};
-use super::{file_mime, Error};
+use super::Error;
 use super::Header;
+use crate::mime::extension_to_mime;
 
 pub struct Response {
     code: usize,
@@ -61,7 +62,9 @@ impl Response {
 
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut file = File::open(path.as_ref()).map_err(|e| Error::IOError(e))?;
-        let mime = file_mime(path.as_ref()).unwrap();
+        let mime = extension_to_mime(
+            path.as_ref().extension().map(|s| s.to_str()).flatten().unwrap_or("")
+        );
 
         let mut body = Vec::new();
         if mime == "text/html" {

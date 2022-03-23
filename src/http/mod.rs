@@ -9,12 +9,13 @@ pub use response::*;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::net::{SocketAddr, TcpStream};
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::net::{SocketAddr};
+use std::path::{PathBuf};
 use endpoint::*;
 
 use crate::server::Service;
-use crate::URL;
+use crate::url::URL;
 
 #[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub enum Method {
@@ -125,7 +126,7 @@ impl WebService {
 }
 
 impl Service for WebService {
-    fn handle_connection(&self, con: TcpStream, client: SocketAddr) {
+    fn handle_connection(&self, con: impl Read + Write, client: SocketAddr) {
         println!("Started serving client: {}", client);
         let mut stream = Stream::new(con);
         loop {
@@ -162,11 +163,4 @@ impl Service for WebService {
     }
 }
 
-pub fn file_mime<R: AsRef<Path>>(path: R) -> Result<String, ()> {
-    let path = path.as_ref();
-    String::from_utf8(
-        std::process::Command::new("file")
-            .arg("--mime-type").arg("-b").arg(path.to_str().unwrap())
-            .output().map_err(|_| ())?.stdout
-    ).map(|s| s.trim().to_string()).map_err(|_| ())
-}
+

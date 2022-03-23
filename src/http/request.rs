@@ -1,8 +1,9 @@
-use std::io::{BufRead};
+use std::borrow::Borrow;
+use std::io::{BufRead, BufReader, Read};
 use std::convert::TryFrom;
 
 use super::*;
-use crate::URL;
+use crate::url::URL;
 
 #[derive(Debug)]
 pub struct Request {
@@ -13,12 +14,13 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn from_stream<F: BufRead>(stream: &mut F) -> Result<Self, Error> {
+    pub fn from_stream<F: Read>(stream: &mut F) -> Result<Self, Error> {
+        let mut reader = BufReader::new(stream);
         let mut line = String::new();
         let mut lines = Vec::new();
 
         loop {
-            match stream.read_line(&mut line) {
+            match reader.read_line(&mut line) {
                 Ok(n) if n > 0 => {
                     if line == "\r\n" {
                         break;
@@ -61,7 +63,7 @@ impl Request {
                 .parse()
                 .map_err(|_| Error::InvalidHeader)?;
             let mut data = vec![0; content_length];
-            stream.read_exact(&mut data[..]).map_err(|e| Error::IOError(e))?;
+            reader.read_exact(&mut data[..]).map_err(|e| Error::IOError(e))?;
             data
         };
 
@@ -81,5 +83,9 @@ impl Request {
 
     pub fn url(&self) -> &URL {
         &self.url
+    }
+
+    pub fn header(&self, key: impl Borrow<str>) -> Option<&str> {
+        self.header.get(key.borrow()).map(|s| s.as_str())
     }
 }
