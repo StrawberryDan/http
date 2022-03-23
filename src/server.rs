@@ -52,9 +52,9 @@ impl<H: Service + Send + Sync + 'static> Server<H> {
                 openssl::ssl::SslAcceptor::mozilla_intermediate_v5(openssl::ssl::SslMethod::tls())
                     .unwrap();
             tls.set_certificate_file("cert.pem", openssl::ssl::SslFiletype::PEM)
-                .unwrap();
+                .expect("Expected certificate file \"cert.pem\" in working directory!");
             tls.set_private_key_file("key.pem", openssl::ssl::SslFiletype::PEM)
-                .unwrap();
+                .expect("Expected key file \"key.pem\" in working directory!");
             tls.build()
         };
 

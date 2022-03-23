@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::server::Service;
 use crate::url::URL;
@@ -63,14 +63,20 @@ pub enum Error {
 }
 
 pub struct WebService {
+    root: PathBuf,
     endpoints: EndpointTable,
 }
 
 impl WebService {
     pub fn new() -> Self {
         Self {
+            root: PathBuf::from("./"),
             endpoints: EndpointTable::new(),
         }
+    }
+
+    pub fn with_root(self, root: impl AsRef<Path>) -> Self {
+        Self { root: root.as_ref().to_path_buf(), .. self }
     }
 
     pub fn with_endpoint(mut self, endpoint: Endpoint, callback: Callback) -> Self {
@@ -78,15 +84,15 @@ impl WebService {
         self
     }
 
-    pub fn handle_file_request(req: &Request, _: &Bindings) -> Option<Response> {
+    pub fn handle_file_request(&self, req: &Request, _: &Bindings) -> Option<Response> {
         return match &req.verb() {
             Method::GET => {
-                let path = Self::find_requested_path(req.url())?;
+                let path = self.find_requested_path(req.url())?;
                 Response::from_file(path).ok()
             }
 
             Method::TRACE => {
-                let path = Self::find_requested_path(req.url())?;
+                let path = self.find_requested_path(req.url())?;
                 Some(Response::from_file(path).ok()?.with_body(Vec::new()))
             }
 
@@ -94,12 +100,14 @@ impl WebService {
         };
     }
 
-    fn find_requested_path(url: &URL) -> Option<PathBuf> {
-        let mut path = if url.resource() == "/" {
+    fn find_requested_path(&self, url: &URL) -> Option<PathBuf> {
+        let mut resource = if url.resource() == "/" {
             PathBuf::from("./index")
         } else {
             PathBuf::from(format!(".{}", url.resource()))
         };
+
+        let mut path = self.root.join(resource);
 
         if !path.exists() {
             let stem = path.file_stem()?;
@@ -153,7 +161,7 @@ impl Service for WebService {
 
             let response = match callback {
                 Some(res) => res,
-                None => Self::handle_file_request(&req, &HashMap::new())
+                None => self.handle_file_request(&req, &HashMap::new())
                     .or(Self::not_found_response(&req, &HashMap::new()))
                     .unwrap(),
             };
