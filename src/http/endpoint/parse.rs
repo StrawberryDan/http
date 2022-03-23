@@ -6,11 +6,10 @@ use super::*;
 use crate::http::Error;
 use crate::url::URL;
 
-
 #[derive(Clone)]
 enum Segment {
     Constant(String),
-    Variable(String)
+    Variable(String),
 }
 
 impl Display for Segment {
@@ -22,13 +21,16 @@ impl Display for Segment {
 }
 
 fn to_segments(str: &str) -> Vec<Segment> {
-    str.split("/").skip(1).map(
-        |s| if s.starts_with("<") && s.ends_with(">") {
-            Segment::Variable(s[1..s.len() - 1].to_string())
-        } else {
-            Segment::Constant(s.to_string())
-        }
-    ).collect()
+    str.split("/")
+        .skip(1)
+        .map(|s| {
+            if s.starts_with("<") && s.ends_with(">") {
+                Segment::Variable(s[1..s.len() - 1].to_string())
+            } else {
+                Segment::Constant(s.to_string())
+            }
+        })
+        .collect()
 }
 
 pub struct EndpointTable {
@@ -37,9 +39,7 @@ pub struct EndpointTable {
 
 impl EndpointTable {
     pub fn new() -> Self {
-        Self {
-            root: Vec::new(),
-        }
+        Self { root: Vec::new() }
     }
 
     pub fn add(&mut self, endpoint: Endpoint, callback: Callback) -> Result<(), Error> {
@@ -52,12 +52,12 @@ impl EndpointTable {
                 let root = segments.remove(0);
                 let leaf = segments.remove(0);
                 (root, None, Some(leaf))
-            },
+            }
             n => {
                 let root = segments.remove(0);
                 let leaf = Some(segments.remove(n - 2));
                 (root, Some(segments), leaf)
-            },
+            }
         };
 
         // Check if root node already exists
@@ -69,13 +69,23 @@ impl EndpointTable {
         }
 
         // Fill in stem nodes
-        let mut cursor = &mut self.root.iter_mut().find(|n| matches(&n.0, &root)).unwrap().1;
+        let mut cursor = &mut self
+            .root
+            .iter_mut()
+            .find(|n| matches(&n.0, &root))
+            .unwrap()
+            .1;
         for seg in stem.unwrap_or(Vec::new()) {
             if !cursor.children.iter().any(|s| matches(&s.0, &seg)) {
                 cursor.children.push((seg.clone(), Node::new()));
             }
 
-            cursor = &mut cursor.children.iter_mut().find(|s| matches(&s.0, &seg)).unwrap().1;
+            cursor = &mut cursor
+                .children
+                .iter_mut()
+                .find(|s| matches(&s.0, &seg))
+                .unwrap()
+                .1;
         }
 
         // If there is a leaf
@@ -85,7 +95,12 @@ impl EndpointTable {
                 return Err(Error::DuplicateEndpoint);
             } else {
                 cursor.children.push((leaf.clone(), Node::new()));
-                cursor = &mut cursor.children.iter_mut().find(|s| matches(&s.0, &leaf)).unwrap().1;
+                cursor = &mut cursor
+                    .children
+                    .iter_mut()
+                    .find(|s| matches(&s.0, &leaf))
+                    .unwrap()
+                    .1;
             }
         }
 
@@ -98,38 +113,55 @@ impl EndpointTable {
 
     pub fn find_match(&self, url: &URL) -> Option<(Callback, Bindings)> {
         // Get all root nodes and mark with empty bindings and 0 priority to be filled in
-        let mut candidates: Vec<_> = self.root.iter().map(|x| (x, Bindings::new(), BitVec::new())).collect();
+        let mut candidates: Vec<_> = self
+            .root
+            .iter()
+            .map(|x| (x, Bindings::new(), BitVec::new()))
+            .collect();
         // Split the url resource into segments
-        let segments: Vec<_> = url.resource().split("/").map(|s| Segment::Constant(s.to_string())).collect();
+        let segments: Vec<_> = url
+            .resource()
+            .split("/")
+            .map(|s| Segment::Constant(s.to_string()))
+            .collect();
 
-        if segments.is_empty() {  return None; }
+        if segments.is_empty() {
+            return None;
+        }
         let (leaf, stem) = segments.split_last().unwrap();
-        for seg in stem{
+        for seg in stem {
             candidates = bind_and_filter(candidates.into_iter(), &seg)
                 // Expand children and flatten and collect
-                .map(|(node, bindings, priority)| node.1.children.iter()
-                .map(move |node| (node, bindings.clone(), priority.clone())))
+                .map(|(node, bindings, priority)| {
+                    node.1
+                        .children
+                        .iter()
+                        .map(move |node| (node, bindings.clone(), priority.clone()))
+                })
                 .flatten()
                 .collect();
         }
         // Bind final segment without expanding children
-        candidates = bind_and_filter(candidates.into_iter(), &leaf)
-            .collect();
+        candidates = bind_and_filter(candidates.into_iter(), &leaf).collect();
 
         if candidates.is_empty() {
             None
         } else {
             candidates.sort_by(|(_, _, a), (_, _, b)| a.cmp(b).reverse());
-            let callback = candidates[0].0.1.value.unwrap();
+            let callback = candidates[0].0 .1.value.unwrap();
             let bindings = candidates[0].1.clone();
             return Some((callback, bindings));
         }
     }
 }
 
-fn bind_and_filter<'r>(input: impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r, seg: &'r Segment) -> impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r {
+fn bind_and_filter<'r>(
+    input: impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r,
+    seg: &'r Segment,
+) -> impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r {
     // Add binding success and new binding table
-    input.map(move |(node, bindings, mut priority)| {
+    input
+        .map(move |(node, bindings, mut priority)| {
             let (b, b2) = bind(&node.0, &seg.to_string(), &bindings);
             if let Segment::Constant(_) = &node.0 {
                 priority.push(true);

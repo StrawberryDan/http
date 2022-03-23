@@ -1,10 +1,10 @@
 mod parse;
 
-use std::fmt::{Display, Formatter};
 use crate::http::{Method, Request, Response};
+use std::fmt::{Display, Formatter};
 
-pub use parse::EndpointTable;
 pub use parse::Bindings;
+pub use parse::EndpointTable;
 
 pub type Callback = fn(&Request, &Bindings) -> Option<Response>;
 
@@ -17,7 +17,7 @@ impl Endpoint {
     pub fn new(method: Method, resource: &str) -> Self {
         Endpoint {
             method,
-            resource: resource.to_string()
+            resource: resource.to_string(),
         }
     }
 
@@ -25,12 +25,16 @@ impl Endpoint {
         self.method
     }
 
-    pub fn resource(&self) -> &String { &self.resource }
+    pub fn resource(&self) -> &String {
+        &self.resource
+    }
 }
 
 #[macro_export]
 macro_rules! endpoint {
-    ($v: ident, $r: literal) => { crate::http::endpoint::Endpoint::new(crate::http::Method::$v, $r)};
+    ($v: ident, $r: literal) => {
+        crate::http::endpoint::Endpoint::new(crate::http::Method::$v, $r)
+    };
 }
 
 #[allow(unused)]

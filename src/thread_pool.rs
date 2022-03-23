@@ -1,5 +1,9 @@
+use std::sync::{
+    atomic::{AtomicBool, Ordering as AtomicOrd},
+    mpsc::{self, SendError},
+    Arc,
+};
 use std::thread::{spawn, JoinHandle};
-use std::sync::{Arc, mpsc::{self, SendError}, atomic::{AtomicBool, Ordering as AtomicOrd}};
 
 pub struct ThreadPool {
     capacity: Option<usize>,
@@ -15,7 +19,10 @@ impl ThreadPool {
     }
 
     pub fn submit(&mut self, job: impl FnOnce() + Sync + Send + 'static) -> Result<(), ()> {
-        let free_worker = self.workers.iter_mut().find(|w| !w.busy.load(AtomicOrd::Relaxed));
+        let free_worker = self
+            .workers
+            .iter_mut()
+            .find(|w| !w.busy.load(AtomicOrd::Relaxed));
 
         match free_worker {
             Some(w) => {
@@ -23,24 +30,26 @@ impl ThreadPool {
             }
 
             None => match self.capacity {
-                    Some(c) if self.workers.len() < c => {
-                        let mut w = Worker::new();
-                        w.send(Message::NewJob(Box::new(job))).map_err(|_| ())?;
-                        self.workers.push(w);
-                    }
+                Some(c) if self.workers.len() < c => {
+                    let mut w = Worker::new();
+                    w.send(Message::NewJob(Box::new(job))).map_err(|_| ())?;
+                    self.workers.push(w);
+                }
 
-                    Some(_) => {
-                        use rand::random;
-                        let choice = random::<usize>() % self.workers.len();
-                        self.workers[choice].send(Message::NewJob(Box::new(job))).map_err(|_| ())?;
-                    }
+                Some(_) => {
+                    use rand::random;
+                    let choice = random::<usize>() % self.workers.len();
+                    self.workers[choice]
+                        .send(Message::NewJob(Box::new(job)))
+                        .map_err(|_| ())?;
+                }
 
-                    None => {
-                        let mut w = Worker::new();
-                        w.send(Message::NewJob(Box::new(job))).map_err(|_| ())?;
-                        self.workers.push(w);
-                    }
-            }
+                None => {
+                    let mut w = Worker::new();
+                    w.send(Message::NewJob(Box::new(job))).map_err(|_| ())?;
+                    self.workers.push(w);
+                }
+            },
         }
 
         Ok(())
@@ -89,7 +98,7 @@ impl Worker {
             Some(j) => {
                 j.join().map_err(|_| ())?;
                 Ok(())
-            },
+            }
 
             None => Ok(()),
         }
@@ -103,7 +112,7 @@ impl Worker {
                 Message::NewJob(j) => {
                     busy.store(true, AtomicOrd::Relaxed);
                     j();
-                },
+                }
             }
         }
     }
@@ -111,5 +120,5 @@ impl Worker {
 
 enum Message {
     Terminate,
-    NewJob(Box<dyn FnOnce() + Send + Sync>)
+    NewJob(Box<dyn FnOnce() + Send + Sync>),
 }

@@ -1,12 +1,15 @@
 pub mod frame;
 
-use std::io::{Read, Write};
-use std::net::{SocketAddr};
-use crate::http::{Stream as HTTPStream, Error as HTTPError, Response};
+use crate::http::{Error as HTTPError, Response, Stream as HTTPStream};
 use crate::server::Service;
-use crate::ws::frame::{DataFrame};
+use crate::ws::frame::DataFrame;
+use std::io::{Read, Write};
+use std::net::SocketAddr;
 
-pub struct Stream<S> where S: Read + Write {
+pub struct Stream<S>
+where
+    S: Read + Write,
+{
     connection: S,
 }
 
@@ -32,8 +35,8 @@ impl<S: Read + Write> Stream<S> {
 
             let accept_key = openssl::base64::encode_block(
                 &openssl::sha::sha1(
-                    format!("{}{}", key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").as_bytes()
-                )[..]
+                    format!("{}{}", key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").as_bytes(),
+                )[..],
             );
 
             let response = Response::new()
@@ -44,11 +47,9 @@ impl<S: Read + Write> Stream<S> {
 
             http.send(response).map_err(|e| Error::HTTPError(e))?;
 
-            return Ok(
-                Self {
-                    connection: http.into_inner(),
-                }
-            );
+            return Ok(Self {
+                connection: http.into_inner(),
+            });
         }
     }
 
@@ -58,7 +59,9 @@ impl<S: Read + Write> Stream<S> {
 
     pub fn send(&mut self, frame: DataFrame) -> Result<(), Error> {
         let bytes = frame.into_bytes();
-        self.connection.write_all(&bytes[..]).map_err(|e| Error::IOError(e))?;
+        self.connection
+            .write_all(&bytes[..])
+            .map_err(|e| Error::IOError(e))?;
         Ok(())
     }
 }
@@ -75,7 +78,10 @@ impl Service for WebSocketService {
             let frame = match stream.recv() {
                 Ok(f) => f,
                 Err(Error::IOError(e)) if matches!(e.kind(), ConnectionAborted) => break,
-                Err(e) => { eprintln!("{:?}", e); break; }
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    break;
+                }
             };
 
             stream.send(DataFrame::text("Cum!")).unwrap();

@@ -1,18 +1,18 @@
+mod endpoint;
 mod request;
 mod response;
-mod endpoint;
 mod stream;
 
-pub use stream::*;
 pub use request::*;
 pub use response::*;
+pub use stream::*;
 
+use endpoint::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
-use std::net::{SocketAddr};
-use std::path::{PathBuf};
-use endpoint::*;
+use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use crate::server::Service;
 use crate::url::URL;
@@ -44,7 +44,7 @@ impl TryFrom<&str> for Method {
             "OPTIONS" => Ok(Self::OPTIONS),
             "TRACE" => Ok(Self::TRACE),
             "PATCH" => Ok(Self::PATCH),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -69,7 +69,7 @@ pub struct WebService {
 impl WebService {
     pub fn new() -> Self {
         Self {
-            endpoints: EndpointTable::new()
+            endpoints: EndpointTable::new(),
         }
     }
 
@@ -90,10 +90,8 @@ impl WebService {
                 Some(Response::from_file(path).ok()?.with_body(Vec::new()))
             }
 
-            _ => {
-                None
-            }
-        }
+            _ => None,
+        };
     }
 
     fn find_requested_path(url: &URL) -> Option<PathBuf> {
@@ -109,10 +107,12 @@ impl WebService {
                 let dir = path.parent()?.read_dir().ok()?;
                 let candidates: Vec<_> = dir
                     .filter(|f| f.is_ok())
-                    .map(|f| unsafe { f.unwrap_unchecked().path() } )
+                    .map(|f| unsafe { f.unwrap_unchecked().path() })
                     .filter(|f| f.file_stem().map(|f| f == stem).unwrap_or(false))
                     .collect();
-                if candidates.is_empty() { return None; }
+                if candidates.is_empty() {
+                    return None;
+                }
                 path = candidates[0].clone();
             }
         }
@@ -121,7 +121,10 @@ impl WebService {
     }
 
     fn not_found_response(_: &Request, _: &Bindings) -> Option<Response> {
-        Some(Response::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>").with_code(404))
+        Some(
+            Response::from_text("text/html", "<html><body><h1>Not Found</h1></body></html>")
+                .with_code(404),
+        )
     }
 }
 
@@ -142,17 +145,25 @@ impl Service for WebService {
                 }
             };
 
-            let callback = self.endpoints.find_match(req.url()).map(|(c, b)| c(&req, &b)).flatten();
+            let callback = self
+                .endpoints
+                .find_match(req.url())
+                .map(|(c, b)| c(&req, &b))
+                .flatten();
 
             let response = match callback {
                 Some(res) => res,
-                None => Self::handle_file_request(&req, &HashMap::new()).or(Self::not_found_response(&req, &HashMap::new())).unwrap()
+                None => Self::handle_file_request(&req, &HashMap::new())
+                    .or(Self::not_found_response(&req, &HashMap::new()))
+                    .unwrap(),
             };
 
             match stream.send(response) {
                 Ok(_) => (),
-                Err(Error::ConnectionClosed) => { break; }
-                Err(e) =>  {
+                Err(Error::ConnectionClosed) => {
+                    break;
+                }
+                Err(e) => {
                     eprintln!("Error sending response! Error: {:?}", e);
                     break;
                 }
@@ -162,5 +173,3 @@ impl Service for WebService {
         println!("Stopped serving client: {}", client);
     }
 }
-
-

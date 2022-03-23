@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
-use std::io::{BufRead, BufReader, Read};
 use std::convert::TryFrom;
+use std::io::{BufRead, BufReader, Read};
 
 use super::*;
 use crate::url::URL;
@@ -10,7 +10,7 @@ pub struct Request {
     verb: Method,
     url: URL,
     header: Header,
-    body: Vec<u8>
+    body: Vec<u8>,
 }
 
 impl Request {
@@ -25,8 +25,8 @@ impl Request {
                     if line == "\r\n" {
                         break;
                     } else {
-                    lines.push(line.clone());
-                    line.clear();
+                        lines.push(line.clone());
+                        line.clear();
                     }
                 }
 
@@ -43,8 +43,7 @@ impl Request {
         let (verb, url) = {
             let top = lines.get(0).ok_or(Error::RequestParse)?;
             let top: Vec<&str> = top.split(" ").collect();
-            let verb = Method::try_from(top[0])
-                .map_err(|_| Error::RequestParse)?;
+            let verb = Method::try_from(top[0]).map_err(|_| Error::RequestParse)?;
             let resource = URL::from_string(top[1]).map_err(|_| Error::URLParse)?;
             (verb, resource)
         };
@@ -53,17 +52,20 @@ impl Request {
         for line in lines.drain(..).skip(1) {
             let colon = line.find(":").unwrap();
             let key = line[0..colon].to_owned();
-            let value = line[colon + 1 ..].trim().to_owned();
+            let value = line[colon + 1..].trim().to_owned();
             header.insert(key, value);
         }
 
         let body = {
-            let content_length: usize = header.get("Content-Length")
+            let content_length: usize = header
+                .get("Content-Length")
                 .unwrap_or(&"0".to_owned())
                 .parse()
                 .map_err(|_| Error::InvalidHeader)?;
             let mut data = vec![0; content_length];
-            reader.read_exact(&mut data[..]).map_err(|e| Error::IOError(e))?;
+            reader
+                .read_exact(&mut data[..])
+                .map_err(|e| Error::IOError(e))?;
             data
         };
 
@@ -71,7 +73,7 @@ impl Request {
             verb,
             url,
             header,
-            body
+            body,
         };
 
         return Ok(req);

@@ -1,17 +1,17 @@
 use super::*;
 
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
-use std::process::{Command};
 use super::Error;
 use super::Header;
 use crate::mime::extension_to_mime;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::process::Command;
 
 pub struct Response {
     code: usize,
     header: Header,
-    body: Vec<u8>
+    body: Vec<u8>,
 }
 
 impl Response {
@@ -19,16 +19,16 @@ impl Response {
         Response {
             code: 500,
             header: HashMap::new(),
-            body: Vec::new()
+            body: Vec::new(),
         }
     }
 
     pub fn with_code(self, code: usize) -> Self {
-        Self { code, .. self }
+        Self { code, ..self }
     }
 
     pub fn with_header(self, header: Header) -> Self {
-        Self { header, .. self }
+        Self { header, ..self }
     }
 
     pub fn with_header_line(mut self, key: &str, value: &str) -> Self {
@@ -37,11 +37,12 @@ impl Response {
     }
 
     pub fn with_body(self, body: Vec<u8>) -> Self {
-        Self { body, .. self }
+        Self { body, ..self }
     }
 
     pub fn from_text(mime: &str, text: &str) -> Self {
-        Self::new().with_code(200)
+        Self::new()
+            .with_code(200)
             .with_header_line("Content-Type", mime)
             .with_header_line("Content-Length", text.as_bytes().len().to_string().as_str())
             .with_body(text.as_bytes().to_vec())
@@ -49,21 +50,27 @@ impl Response {
 
     pub fn from_html(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
-        let php = Command::new("php").arg("-f").arg(path.to_str().unwrap()).output().unwrap();
+        let php = Command::new("php")
+            .arg("-f")
+            .arg(path.to_str().unwrap())
+            .output()
+            .unwrap();
 
-        Ok(
-            Response::new()
-                .with_code(200)
-                .with_header_line("Content-Type", "text/html")
-                .with_header_line("Content-Length", &php.stdout.len().to_string())
-                .with_body(php.stdout)
-        )
+        Ok(Response::new()
+            .with_code(200)
+            .with_header_line("Content-Type", "text/html")
+            .with_header_line("Content-Length", &php.stdout.len().to_string())
+            .with_body(php.stdout))
     }
 
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut file = File::open(path.as_ref()).map_err(|e| Error::IOError(e))?;
         let mime = extension_to_mime(
-            path.as_ref().extension().map(|s| s.to_str()).flatten().unwrap_or("")
+            path.as_ref()
+                .extension()
+                .map(|s| s.to_str())
+                .flatten()
+                .unwrap_or(""),
         );
 
         let mut body = Vec::new();
@@ -74,22 +81,14 @@ impl Response {
         file.read_to_end(&mut body).map_err(|e| Error::IOError(e))?;
 
         let mut header = Header::new();
-        header.insert(
-            String::from("Content-Type"),
-            String::from(mime)
-        );
+        header.insert(String::from("Content-Type"), String::from(mime));
 
-        header.insert(
-            String::from("Content-Length"),
-            body.len().to_string()
-        );
+        header.insert(String::from("Content-Length"), body.len().to_string());
 
-        Ok(
-            Response::new()
-                .with_code(200)
-                .with_header(header)
-                .with_body(body)
-        )
+        Ok(Response::new()
+            .with_code(200)
+            .with_header(header)
+            .with_body(body))
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {

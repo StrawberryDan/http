@@ -18,19 +18,27 @@ impl URL {
             password: None,
             host: None,
             port: None,
-            resource: "/".to_string()
+            resource: "/".to_string(),
         }
     }
 
     pub fn from_string(s: &str) -> Result<URL, ()> {
-        if !s.is_ascii() || s.is_empty() { return Err(()); }
+        if !s.is_ascii() || s.is_empty() {
+            return Err(());
+        }
 
         let mut s = s.to_string();
         while let Some(i) = s.find("%") {
             let (prefix, middle, suffix) = (
-                (0..i).map(|n| s.chars().nth(n).unwrap()).collect::<String>(),
-                (i+1..i+3).map(|n| s.chars().nth(n).unwrap()).collect::<String>(),
-                (i+3..s.len()).map(|n| s.chars().nth(n).unwrap()).collect::<String>()
+                (0..i)
+                    .map(|n| s.chars().nth(n).unwrap())
+                    .collect::<String>(),
+                (i + 1..i + 3)
+                    .map(|n| s.chars().nth(n).unwrap())
+                    .collect::<String>(),
+                (i + 3..s.len())
+                    .map(|n| s.chars().nth(n).unwrap())
+                    .collect::<String>(),
             );
 
             let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ())? as char;
@@ -43,14 +51,34 @@ impl URL {
         let (host, port) = host.split_once(":").unwrap_or((host, ""));
         let (username, password) = user.split_once(":").unwrap_or(("", ""));
 
-        Ok( Self {
-            protocol: if protocol.is_empty() { None } else { Some(protocol.to_string()) },
-            username: if username.is_empty() { None } else { Some(user    .to_string()) },
-            password: if password.is_empty() { None } else { Some(password.to_string()) },
-            host:     if host    .is_empty() { None } else { Some(host    .to_string()) },
-            port:     if port    .is_empty() { None } else { Some(port    .parse().map_err(|_| ())? ) },
-            resource: format!("/{}", resource)
-        } )
+        Ok(Self {
+            protocol: if protocol.is_empty() {
+                None
+            } else {
+                Some(protocol.to_string())
+            },
+            username: if username.is_empty() {
+                None
+            } else {
+                Some(user.to_string())
+            },
+            password: if password.is_empty() {
+                None
+            } else {
+                Some(password.to_string())
+            },
+            host: if host.is_empty() {
+                None
+            } else {
+                Some(host.to_string())
+            },
+            port: if port.is_empty() {
+                None
+            } else {
+                Some(port.parse().map_err(|_| ())?)
+            },
+            resource: format!("/{}", resource),
+        })
     }
 
     pub fn protocol(&self) -> Option<&String> {
@@ -58,7 +86,10 @@ impl URL {
     }
 
     pub fn with_protocol<S: Borrow<str>>(self, protocol: Option<S>) -> Self {
-        Self { protocol: protocol.map( |s| s.borrow().to_string() ), .. self }
+        Self {
+            protocol: protocol.map(|s| s.borrow().to_string()),
+            ..self
+        }
     }
 
     pub fn username(&self) -> Option<&String> {
@@ -66,7 +97,10 @@ impl URL {
     }
 
     pub fn with_username<S: Borrow<str>>(self, username: Option<S>) -> Self {
-        Self { username: username.map( |s| s.borrow().to_string() ), .. self }
+        Self {
+            username: username.map(|s| s.borrow().to_string()),
+            ..self
+        }
     }
 
     pub fn password(&self) -> Option<&String> {
@@ -74,7 +108,10 @@ impl URL {
     }
 
     pub fn with_password<S: Borrow<str>>(self, password: Option<S>) -> Self {
-        Self { password: password.map( |s| s.borrow().to_string() ), .. self }
+        Self {
+            password: password.map(|s| s.borrow().to_string()),
+            ..self
+        }
     }
 
     pub fn host(&self) -> Option<&String> {
@@ -82,7 +119,10 @@ impl URL {
     }
 
     pub fn with_host<S: Borrow<str>>(self, host: Option<S>) -> Self {
-        Self { host: host.map( |s| s.borrow().to_string() ), .. self }
+        Self {
+            host: host.map(|s| s.borrow().to_string()),
+            ..self
+        }
     }
 
     pub fn port(&self) -> Option<&u16> {
@@ -90,7 +130,7 @@ impl URL {
     }
 
     pub fn with_port(self, port: Option<u16>) -> Self {
-        Self { port, .. self }
+        Self { port, ..self }
     }
 
     pub fn resource(&self) -> &String {
@@ -100,9 +140,15 @@ impl URL {
     pub fn with_resource<S: Borrow<str>>(self, resource: S) -> Self {
         let resource = resource.borrow();
         if resource.starts_with("/") {
-            Self { resource: resource.to_string(), .. self }
+            Self {
+                resource: resource.to_string(),
+                ..self
+            }
         } else {
-            Self { resource: format!("/{}", resource), .. self }
+            Self {
+                resource: format!("/{}", resource),
+                ..self
+            }
         }
     }
 
@@ -136,11 +182,12 @@ impl URL {
 }
 
 fn encode<S: Borrow<str>>(s: &S) -> String {
-    s.borrow().chars()
+    s.borrow()
+        .chars()
         .map(|c| match c {
-                'a' ..= 'z' | 'A' ..= 'Z' | '0' ..= '9' | '-' | '_' | '~' | '.' => format!{"{}", c},
-                _ => format!("%{:02X?}", (c as u8))
-            })
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '~' | '.' => format! {"{}", c},
+            _ => format!("%{:02X?}", (c as u8)),
+        })
         .fold(String::new(), |a, b| format!("{}{}", a, b))
 }
 
@@ -161,6 +208,9 @@ mod test {
 
     #[test]
     fn url_decoding() {
-        println!("{:?}", URL::from_string("https://justnoise.net:25565/el%20diablo/the%20devil.png").unwrap());
+        println!(
+            "{:?}",
+            URL::from_string("https://justnoise.net:25565/el%20diablo/the%20devil.png").unwrap()
+        );
     }
 }
