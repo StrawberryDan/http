@@ -15,12 +15,13 @@ impl<S: Read + Write> Stream<S> {
     }
 
     pub fn recv(&mut self) -> Result<Request, Error> {
-        Request::from_stream(&mut self.connection)
+        Request::read(&mut self.connection)
     }
 
     pub fn send(&mut self, response: Response) -> Result<(), Error> {
+        let bytes = response.as_bytes();
         self.connection
-            .write_all(&response.as_bytes())
+            .write_all(&bytes)
             .map_err(|e| Error::IOError(e))?;
         self.connection.flush().map_err(|e| Error::IOError(e))?;
         Ok(())

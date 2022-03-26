@@ -1,15 +1,94 @@
-use std::collections::HashMap;
-
-use bit_vec::BitVec;
+use std::collections::{HashMap};
 
 use super::*;
-use crate::http::Error;
 use crate::url::URL;
 
-#[derive(Clone)]
+pub struct EndpointTable {
+    endpoints: Vec<(EndpointURI, Box<dyn EndpointFunction + Send + Sync>)>,
+}
+
+impl EndpointTable {
+    pub fn new() -> Self {
+        Self { endpoints: Vec::new() }
+    }
+
+    pub fn add(&mut self, endpoint: Endpoint, handler: Box<dyn EndpointFunction + Send + Sync>) {
+        self.endpoints.push((EndpointURI::from(&endpoint), handler));
+    }
+
+    pub fn find_match(&self, method: Method, url: &URL) -> Option<(&Box<dyn EndpointFunction + Send + Sync>, Bindings)> {
+        let segments = to_segments(url.resource());
+        let candidates: Vec<_> = self.endpoints.iter()
+            .filter(|(e, _)| e.method == method)
+            .map(|(e, h)| (e, h, e.try_match(&segments)))
+            .filter(|(_, _, bindings)| bindings.is_some())
+            .collect();
+
+        if candidates.len() == 0 {
+            return None;
+        } else if candidates.len() > 1 {
+            eprintln!("Ambiguous endpoint match! Possible to match {:?} {} to the following endpoints: {:?}",
+                      method, url.as_string().unwrap(),
+                      candidates.iter().map(|(e, _, _)| format!("{:?}", e)).collect::<Vec<_>>());
+        }
+
+        return Some((candidates[0].1, candidates[0].2.clone().unwrap()));
+    }
+}
+
+#[derive(Debug)]
+struct EndpointURI {
+    method: Method,
+    segments: Vec<Segment>,
+}
+
+impl EndpointURI {
+    pub fn from(endpoint: &Endpoint) -> Self {
+        Self {
+            method: endpoint.method,
+            segments: to_segments(endpoint.resource()),
+        }
+    }
+
+    pub fn try_match(&self, other: &Vec<Segment>) -> Option<Bindings> {
+        if self.segments.len() != other.len() {
+            return None;
+        }
+
+        let mut bindings = Bindings::new();
+
+        for (a, b) in self.segments.iter().zip(other.iter()) {
+            match Segment::try_match(a, b, &mut bindings) {
+                false => return None,
+                true => (),
+            }
+        }
+
+        return Some(bindings);
+    }
+}
+
+pub type Bindings = HashMap<String, String>;
+
+#[derive(Debug)]
 enum Segment {
     Constant(String),
     Variable(String),
+}
+
+impl Segment {
+    pub fn try_match(a: &Segment, b: &Segment, bindings: &mut Bindings) -> bool {
+        use Segment::*;
+
+        match (a, b) {
+            (Constant(a), Constant(b)) => a == b,
+            (Variable(_), Variable(_)) => true,
+            (Variable(v), Constant(s)) | (Constant(s), Variable(v)) => {
+                bindings.insert(v.clone(), s.clone());
+                true
+            }
+        }
+    }
 }
 
 impl Display for Segment {
@@ -32,181 +111,3 @@ fn to_segments(str: &str) -> Vec<Segment> {
         })
         .collect()
 }
-
-pub struct EndpointTable {
-    root: Vec<(Segment, Node)>,
-}
-
-impl EndpointTable {
-    pub fn new() -> Self {
-        Self { root: Vec::new() }
-    }
-
-    pub fn add(&mut self, endpoint: Endpoint, callback: Callback) -> Result<(), Error> {
-        let mut segments = to_segments(endpoint.resource());
-        // Split into Root, Stem and Leaf
-        let (root, stem, leaf) = match segments.len() {
-            0 => panic!("Attempt to add endpoint to tree with no resource specified"),
-            1 => (segments.remove(0), None, None),
-            2 => {
-                let root = segments.remove(0);
-                let leaf = segments.remove(0);
-                (root, None, Some(leaf))
-            }
-            n => {
-                let root = segments.remove(0);
-                let leaf = Some(segments.remove(n - 2));
-                (root, Some(segments), leaf)
-            }
-        };
-
-        // Check if root node already exists
-        if !self.root.iter().any(|n| matches(&n.0, &root)) {
-            self.root.push((root.clone(), Node::new()));
-        } else if matches!((&stem, &leaf), (None, None)) {
-            // Report duplication if this the end of the endpoint
-            return Err(Error::DuplicateEndpoint);
-        }
-
-        // Fill in stem nodes
-        let mut cursor = &mut self
-            .root
-            .iter_mut()
-            .find(|n| matches(&n.0, &root))
-            .unwrap()
-            .1;
-        for seg in stem.unwrap_or(Vec::new()) {
-            if !cursor.children.iter().any(|s| matches(&s.0, &seg)) {
-                cursor.children.push((seg.clone(), Node::new()));
-            }
-
-            cursor = &mut cursor
-                .children
-                .iter_mut()
-                .find(|s| matches(&s.0, &seg))
-                .unwrap()
-                .1;
-        }
-
-        // If there is a leaf
-        if let Some(leaf) = leaf {
-            // Error if node already exists
-            if cursor.children.iter().any(|s| matches(&s.0, &leaf)) {
-                return Err(Error::DuplicateEndpoint);
-            } else {
-                cursor.children.push((leaf.clone(), Node::new()));
-                cursor = &mut cursor
-                    .children
-                    .iter_mut()
-                    .find(|s| matches(&s.0, &leaf))
-                    .unwrap()
-                    .1;
-            }
-        }
-
-        // Add callback to added node
-        cursor.value = Some(callback);
-
-        // Great Success
-        Ok(())
-    }
-
-    pub fn find_match(&self, url: &URL) -> Option<(Callback, Bindings)> {
-        // Get all root nodes and mark with empty bindings and 0 priority to be filled in
-        let mut candidates: Vec<_> = self
-            .root
-            .iter()
-            .map(|x| (x, Bindings::new(), BitVec::new()))
-            .collect();
-        // Split the url resource into segments
-        let segments: Vec<_> = url
-            .resource()
-            .split("/")
-            .map(|s| Segment::Constant(s.to_string()))
-            .collect();
-
-        if segments.is_empty() {
-            return None;
-        }
-        let (leaf, stem) = segments.split_last().unwrap();
-        for seg in stem {
-            candidates = bind_and_filter(candidates.into_iter(), &seg)
-                // Expand children and flatten and collect
-                .map(|(node, bindings, priority)| {
-                    node.1
-                        .children
-                        .iter()
-                        .map(move |node| (node, bindings.clone(), priority.clone()))
-                })
-                .flatten()
-                .collect();
-        }
-        // Bind final segment without expanding children
-        candidates = bind_and_filter(candidates.into_iter(), &leaf).collect();
-
-        if candidates.is_empty() {
-            None
-        } else {
-            candidates.sort_by(|(_, _, a), (_, _, b)| a.cmp(b).reverse());
-            let callback = candidates[0].0 .1.value.unwrap();
-            let bindings = candidates[0].1.clone();
-            return Some((callback, bindings));
-        }
-    }
-}
-
-fn bind_and_filter<'r>(
-    input: impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r,
-    seg: &'r Segment,
-) -> impl Iterator<Item = (&'r (Segment, Node), Bindings, BitVec)> + 'r {
-    // Add binding success and new binding table
-    input
-        .map(move |(node, bindings, mut priority)| {
-            let (b, b2) = bind(&node.0, &seg.to_string(), &bindings);
-            if let Segment::Constant(_) = &node.0 {
-                priority.push(true);
-            } else {
-                priority.push(false);
-            }
-            (b, node, b2, priority)
-        })
-        // Remove failed bindings and remove flag
-        .filter(|(b, _, _, _)| *b)
-        .map(|(_, node, bindings, priority)| (node, bindings, priority))
-}
-
-fn bind(seg: &Segment, val: &str, bindings: &Bindings) -> (bool, Bindings) {
-    match seg {
-        Segment::Constant(seg) => (seg == val, bindings.clone()),
-        Segment::Variable(seg) => {
-            let mut bindings = bindings.clone();
-            bindings.insert(seg.clone(), val.to_string());
-            (true, bindings)
-        }
-    }
-}
-
-fn matches(a: &Segment, b: &Segment) -> bool {
-    use Segment::*;
-    match (a, b) {
-        (Constant(a), Constant(b)) => a == b,
-        (Variable(_), Variable(_)) => true,
-        _ => false,
-    }
-}
-
-struct Node {
-    value: Option<Callback>,
-    children: Vec<(Segment, Node)>,
-}
-
-impl Node {
-    fn new() -> Self {
-        Self {
-            value: None,
-            children: Vec::new(),
-        }
-    }
-}
-
-pub type Bindings = HashMap<String, String>;

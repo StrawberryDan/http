@@ -1,20 +1,19 @@
-use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::io::{BufRead, BufReader, Read};
 
 use super::*;
 use crate::url::URL;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Request {
-    verb: Method,
+    method: Method,
     url: URL,
     header: Header,
     body: Vec<u8>,
 }
 
 impl Request {
-    pub fn from_stream<F: Read>(stream: &mut F) -> Result<Self, Error> {
+    pub fn read<F: Read>(stream: &mut F) -> Result<Self, Error> {
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
         let mut lines = Vec::new();
@@ -40,7 +39,7 @@ impl Request {
             }
         }
 
-        let (verb, url) = {
+        let (method, url) = {
             let top = lines.get(0).ok_or(Error::RequestParse)?;
             let top: Vec<&str> = top.split(" ").collect();
             let verb = Method::try_from(top[0]).map_err(|_| Error::RequestParse)?;
@@ -53,12 +52,12 @@ impl Request {
             let colon = line.find(":").unwrap();
             let key = line[0..colon].to_owned();
             let value = line[colon + 1..].trim().to_owned();
-            header.insert(key, value);
+            header.add(key, value);
         }
 
         let body = {
             let content_length: usize = header
-                .get("Content-Length")
+                .get_first("Content-Length")
                 .unwrap_or(&"0".to_owned())
                 .parse()
                 .map_err(|_| Error::InvalidHeader)?;
@@ -70,7 +69,7 @@ impl Request {
         };
 
         let req = Self {
-            verb,
+            method,
             url,
             header,
             body,
@@ -79,15 +78,20 @@ impl Request {
         return Ok(req);
     }
 
-    pub fn verb(&self) -> Method {
-        self.verb
+    pub fn method(&self) -> Method {
+        self.method
     }
 
     pub fn url(&self) -> &URL {
         &self.url
     }
 
-    pub fn header(&self, key: impl Borrow<str>) -> Option<&str> {
-        self.header.get(key.borrow()).map(|s| s.as_str())
+    /// Returns the first header found with the given key.
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    pub fn body(&self) -> &Vec<u8> {
+        &self.body
     }
 }

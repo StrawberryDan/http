@@ -48,9 +48,7 @@ impl<H: Service + Send + Sync + 'static> Server<H> {
         println!("Listening on {}:{}", self.socket.ip(), self.socket.port());
 
         let tls = {
-            let mut tls =
-                openssl::ssl::SslAcceptor::mozilla_intermediate_v5(openssl::ssl::SslMethod::tls())
-                    .unwrap();
+            let mut tls = openssl::ssl::SslAcceptor::mozilla_intermediate_v5(openssl::ssl::SslMethod::tls()).unwrap();
             tls.set_certificate_file("cert.pem", openssl::ssl::SslFiletype::PEM)
                 .expect("Expected certificate file \"cert.pem\" in working directory!");
             tls.set_private_key_file("key.pem", openssl::ssl::SslFiletype::PEM)

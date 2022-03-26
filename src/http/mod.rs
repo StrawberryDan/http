@@ -1,13 +1,19 @@
+// Modules
 mod endpoint;
 mod request;
 mod response;
 mod stream;
+mod cookie;
+mod header;
 
+// Exports
+pub use header::*;
+pub use cookie::*;
 pub use request::*;
 pub use response::*;
 pub use stream::*;
+pub use endpoint::*;
 
-use endpoint::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
@@ -17,7 +23,7 @@ use std::path::{Path, PathBuf};
 use crate::server::Service;
 use crate::url::URL;
 
-#[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialOrd, PartialEq, Copy, Clone, Eq, Ord)]
 pub enum Method {
     GET,
     HEAD,
@@ -34,7 +40,7 @@ impl TryFrom<&str> for Method {
     type Error = ();
 
     fn try_from(from: &str) -> Result<Self, Self::Error> {
-        match &from[..] {
+        match from[..].to_uppercase().as_str() {
             "GET" => Ok(Self::GET),
             "HEAD" => Ok(Self::HEAD),
             "POST" => Ok(Self::POST),
@@ -48,8 +54,6 @@ impl TryFrom<&str> for Method {
         }
     }
 }
-
-pub type Header = HashMap<String, String>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -76,16 +80,16 @@ impl WebService {
     }
 
     pub fn with_root(self, root: impl AsRef<Path>) -> Self {
-        Self { root: root.as_ref().to_path_buf(), .. self }
+        Self { root: root.as_ref().to_path_buf(), ..self }
     }
 
-    pub fn with_endpoint(mut self, endpoint: Endpoint, callback: Callback) -> Self {
-        self.endpoints.add(endpoint, callback).unwrap();
+    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, endpoint: Endpoint, handler: H) -> Self {
+        self.endpoints.add(endpoint, Box::new(handler));
         self
     }
 
     pub fn handle_file_request(&self, req: &Request, _: &Bindings) -> Option<Response> {
-        return match &req.verb() {
+        return match &req.method() {
             Method::GET => {
                 let path = self.find_requested_path(req.url())?;
                 Response::from_file(path).ok()
@@ -93,7 +97,7 @@ impl WebService {
 
             Method::TRACE => {
                 let path = self.find_requested_path(req.url())?;
-                Some(Response::from_file(path).ok()?.with_body(Vec::new()))
+                Some(Response::from_file(path).ok()?.with_body("application/octet-stream", Vec::new()))
             }
 
             _ => None,
@@ -101,7 +105,7 @@ impl WebService {
     }
 
     fn find_requested_path(&self, url: &URL) -> Option<PathBuf> {
-        let mut resource = if url.resource() == "/" {
+        let resource = if url.resource() == "/" {
             PathBuf::from("./index")
         } else {
             PathBuf::from(format!(".{}", url.resource()))
@@ -155,9 +159,8 @@ impl Service for WebService {
 
             let callback = self
                 .endpoints
-                .find_match(req.url())
-                .map(|(c, b)| c(&req, &b))
-                .flatten();
+                .find_match(req.method(), req.url())
+                .map(|(h, b)| h.handle(req.clone(), b)).flatten();
 
             let response = match callback {
                 Some(res) => res,

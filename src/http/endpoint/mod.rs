@@ -6,8 +6,6 @@ use std::fmt::{Display, Formatter};
 pub use parse::Bindings;
 pub use parse::EndpointTable;
 
-pub type Callback = fn(&Request, &Bindings) -> Option<Response>;
-
 pub struct Endpoint {
     method: Method,
     resource: String,
@@ -30,12 +28,6 @@ impl Endpoint {
     }
 }
 
-#[macro_export]
-macro_rules! endpoint {
-    ($v: ident, $r: literal) => {
-        crate::http::endpoint::Endpoint::new(crate::http::Method::$v, $r)
-    };
+pub trait EndpointFunction {
+    fn handle(&self, request: Request, bindings: Bindings) -> Option<Response>;
 }
-
-#[allow(unused)]
-pub(crate) use endpoint;

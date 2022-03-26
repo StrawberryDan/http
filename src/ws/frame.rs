@@ -1,32 +1,57 @@
 use super::Error;
-use crate::ws::frame::OpCode::BINARY;
 use std::io::Read;
+use crate::ws::frame::OpCode::PING;
+use crate::ws::Message;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataFrame {
-    fin: bool,
-    opcode: OpCode,
-    payload: Vec<u8>,
+    pub fin: bool,
+    pub op: OpCode,
+    pub payload: Vec<u8>,
 }
 
 impl DataFrame {
-    pub fn text(text: &str) -> Self {
+    pub fn from_text(text: &str) -> Self {
         Self {
             fin: true,
-            opcode: OpCode::TEXT,
+            op: OpCode::TEXT,
             payload: text.as_bytes().to_vec(),
         }
     }
 
-    pub fn binary(binary: Vec<u8>) -> Self {
+    pub fn from_binary(binary: Vec<u8>) -> Self {
         Self {
             fin: true,
-            opcode: BINARY,
+            op: OpCode::BINARY,
             payload: binary,
         }
     }
 
-    pub fn read(reader: &mut impl Read) -> Result<Self, Error> {
+    pub fn ping() -> Self {
+        Self {
+            fin: true,
+            op: PING,
+            payload: Vec::new(),
+        }
+    }
+
+    pub fn pong() -> Self {
+        Self {
+            fin: true,
+            op: OpCode::PONG,
+            payload: Vec::new(),
+        }
+    }
+
+    pub fn close() -> Self {
+        Self {
+            fin: true,
+            op: OpCode::CLOSE,
+            payload: Vec::new(),
+        }
+    }
+
+    pub fn read_from(reader: &mut impl Read) -> Result<Self, Error> {
         let mut frames: Vec<DataFrame> = Vec::new();
 
         loop {
@@ -44,7 +69,7 @@ impl DataFrame {
                     a.payload.append(&mut b.payload);
                     return DataFrame {
                         fin: b.fin,
-                        opcode: a.opcode,
+                        op: a.op,
                         payload: a.payload,
                     };
                 })
@@ -52,7 +77,7 @@ impl DataFrame {
         }
     }
 
-    pub fn read_single(reader: &mut impl Read) -> Result<Self, Error> {
+    fn read_single(reader: &mut impl Read) -> Result<Self, Error> {
         let mut buffer = [0u8; 2];
         reader
             .read_exact(&mut buffer[..])
@@ -108,7 +133,7 @@ impl DataFrame {
 
         Ok(DataFrame {
             fin,
-            opcode,
+            op: opcode,
             payload,
         })
     }
@@ -116,7 +141,7 @@ impl DataFrame {
     pub fn into_bytes(mut self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
-        bytes.push(0b1000_0000 | self.opcode.to_byte());
+        bytes.push(0b1000_0000 | self.op.to_byte());
 
         match self.payload.len() {
             x if x <= 125 => bytes.push(x as u8),
@@ -144,12 +169,24 @@ impl DataFrame {
     }
 }
 
+impl From<Message> for DataFrame {
+    fn from(msg: Message) -> Self {
+        match msg {
+            Message::String(s) => DataFrame::from_text(s.as_str()),
+            Message::Binary(d) => DataFrame::from_binary(d),
+            Message::Close => DataFrame::close(),
+            Message::Ping => DataFrame::ping(),
+            Message::Pong => DataFrame::pong(),
+        }
+    }
+}
+
 fn unmask_byte(index: usize, byte: u8, mask: u32) -> u8 {
     let mask = mask.to_be_bytes();
     return byte ^ (mask[index % 4]);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum OpCode {
     CONTINUATION,
     TEXT,

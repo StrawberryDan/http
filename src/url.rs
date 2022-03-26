@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct URL {
     protocol: Option<String>,
     username: Option<String>,
