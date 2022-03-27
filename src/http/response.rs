@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use crate::http::Cookie;
+use crate::url::URL;
 
 #[derive(Debug, Clone)]
 pub struct Response {
@@ -21,6 +22,10 @@ impl Response {
             header: Header::new(),
             body: Vec::new(),
         }.with_header("Content-Length", "0")
+    }
+
+    pub fn redirect(url: &URL) -> Self {
+        Self::new().with_code(202).with_header("Location", url.as_string().unwrap())
     }
 
     pub fn with_code(self, code: usize) -> Self {
