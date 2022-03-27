@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct URL {
@@ -7,7 +8,8 @@ pub struct URL {
     password: Option<String>,
     host: Option<String>,
     port: Option<u16>,
-    resource: String,
+    resource: Vec<String>,
+    parameters: HashMap<String, String>,
 }
 
 impl URL {
@@ -18,7 +20,8 @@ impl URL {
             password: None,
             host: None,
             port: None,
-            resource: "/".to_string(),
+            resource: vec!["/".to_string()],
+            parameters: HashMap::new(),
         }
     }
 
@@ -28,6 +31,55 @@ impl URL {
         }
 
         let mut s = s.to_string();
+
+        let (protocol, s) = s.split_once("://").unwrap_or(("", &s));
+        let (user, s) = s.split_once("@").unwrap_or(("", s));
+        let (host, resource) = s.split_once("/").ok_or(())?;
+        let (host, port) = host.split_once(":").unwrap_or((host, ""));
+        let (username, password) = user.split_once(":").unwrap_or(("", ""));
+
+        let (resource, parameters) = resource.split_once("?").unwrap_or((resource, ""));
+
+        let parameters: HashMap<String, String> = parameters.split("&")
+            .filter(|s| !s.is_empty())
+            .map(|p| p.split_once("=").unwrap_or((p, "")))
+            .map(|(a, b)| (Self::decode(a), Self::decode(b)))
+            .collect();
+
+        Ok(Self {
+            protocol: if protocol.is_empty() {
+                None
+            } else {
+                Some(Self::decode(protocol.to_string()))
+            },
+            username: if username.is_empty() {
+                None
+            } else {
+                Some(Self::decode(user.to_string()))
+            },
+            password: if password.is_empty() {
+                None
+            } else {
+                Some(Self::decode(password.to_string()))
+            },
+            host: if host.is_empty() {
+                None
+            } else {
+                Some(Self::decode(host.to_string()))
+            },
+            port: if port.is_empty() {
+                None
+            } else {
+                Some(port.parse().map_err(|_| ())?)
+            },
+            resource: resource.split("/").map(|s| Self::decode(s)).collect(),
+            parameters,
+        })
+    }
+
+    fn decode(s: impl Borrow<str>) -> String {
+        let mut s = s.borrow().to_owned();
+
         while let Some(i) = s.find("%") {
             let (prefix, middle, suffix) = (
                 (0..i)
@@ -41,44 +93,11 @@ impl URL {
                     .collect::<String>(),
             );
 
-            let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ())? as char;
+            let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ()).unwrap() as char;
             s = format!("{}{}{}", prefix, decoded, suffix);
         }
 
-        let (protocol, s) = s.split_once("://").unwrap_or(("", &s));
-        let (user, s) = s.split_once("@").unwrap_or(("", s));
-        let (host, resource) = s.split_once("/").ok_or(())?;
-        let (host, port) = host.split_once(":").unwrap_or((host, ""));
-        let (username, password) = user.split_once(":").unwrap_or(("", ""));
-
-        Ok(Self {
-            protocol: if protocol.is_empty() {
-                None
-            } else {
-                Some(protocol.to_string())
-            },
-            username: if username.is_empty() {
-                None
-            } else {
-                Some(user.to_string())
-            },
-            password: if password.is_empty() {
-                None
-            } else {
-                Some(password.to_string())
-            },
-            host: if host.is_empty() {
-                None
-            } else {
-                Some(host.to_string())
-            },
-            port: if port.is_empty() {
-                None
-            } else {
-                Some(port.parse().map_err(|_| ())?)
-            },
-            resource: format!("/{}", resource),
-        })
+        return s;
     }
 
     pub fn protocol(&self) -> Option<&String> {
@@ -133,23 +152,26 @@ impl URL {
         Self { port, ..self }
     }
 
-    pub fn resource(&self) -> &String {
-        &self.resource
+    pub fn resource(&self) -> String {
+        self.resource.iter().fold(String::new(), |a, b| format!("{}/{}", a, b))
     }
 
     pub fn with_resource<S: Borrow<str>>(self, resource: S) -> Self {
         let resource = resource.borrow();
-        if resource.starts_with("/") {
-            Self {
-                resource: resource.to_string(),
-                ..self
-            }
-        } else {
-            Self {
-                resource: format!("/{}", resource),
-                ..self
-            }
+
+        Self {
+            resource: resource.split("/").filter(|s| !s.is_empty()).map(|s| s.to_string()).collect(),
+            ..self
         }
+    }
+
+    pub fn param(&self, key: impl Borrow<str>) -> Option<&str> {
+        self.parameters.get(key.borrow()).map(|s| s.as_str())
+    }
+
+    pub fn with_param(mut self, key: impl Borrow<str>, value: impl Borrow<str>) -> Self {
+        self.parameters.insert(key.borrow().borrow().to_string(), value.borrow().to_string());
+        self
     }
 
     pub fn as_string(&self) -> Result<String, ()> {
@@ -172,6 +194,11 @@ impl URL {
         }
 
         s += &self.resource().split("/").filter(|s| !s.is_empty()).fold(String::new(), |a, b| format!("{}/{}", a, encode(&b)));
+
+        if !self.parameters.is_empty() {
+            s += "?";
+            s += &self.parameters.iter().map(|(key, value)| format!("{}={}", encode(key), encode(value))).reduce(|a, b| format!("{}&{}", a, b)).unwrap();
+        }
 
         if s.is_ascii() {
             Ok(s)
@@ -208,9 +235,11 @@ mod test {
 
     #[test]
     fn url_decoding() {
+        let url = URL::from_string("https://justnoise.net:25565/el%20diablo/the%20devil.png?qualude=a_mile").unwrap();
         println!(
-            "{:?}",
-            URL::from_string("https://justnoise.net:25565/el%20diablo/the%20devil.png").unwrap()
+            "{} == {:?}",
+            url.as_string().unwrap(),
+            url
         );
     }
 }

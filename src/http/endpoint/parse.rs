@@ -17,7 +17,7 @@ impl EndpointTable {
     }
 
     pub fn find_match(&self, method: Method, url: &URL) -> Option<(&Box<dyn EndpointFunction + Send + Sync>, Bindings)> {
-        let segments = to_segments(url.resource());
+        let segments = to_segments(&url.resource());
         let candidates: Vec<_> = self.endpoints.iter()
             .filter(|(e, _)| e.method == method)
             .filter(|(e, _)| e.segments.len() == segments.len())
