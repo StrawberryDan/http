@@ -80,7 +80,7 @@ impl WebService {
     }
 
     pub fn with_root(self, root: impl AsRef<Path>) -> Self {
-        Self { root: root.as_ref().to_path_buf(), ..self }
+        Self { root: std::fs::canonicalize(root.as_ref()).unwrap(), ..self }
     }
 
     pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, endpoint: Endpoint, handler: H) -> Self {
@@ -129,7 +129,12 @@ impl WebService {
             }
         }
 
-        return Some(path);
+        let canonicalised = std::fs::canonicalize(path).unwrap();
+        if !canonicalised.starts_with(&self.root) {
+            return None;
+        }
+
+        return Some(canonicalised);
     }
 
     fn not_found_response(_: &Request, _: &Bindings) -> Option<Response> {

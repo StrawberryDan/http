@@ -171,7 +171,7 @@ impl URL {
             s += &format!(":{}", port);
         }
 
-        s += &encode(&self.resource);
+        s += &self.resource().split("/").filter(|s| !s.is_empty()).fold(String::new(), |a, b| format!("{}/{}", a, encode(&b)));
 
         if s.is_ascii() {
             Ok(s)

@@ -20,6 +20,7 @@ impl EndpointTable {
         let segments = to_segments(url.resource());
         let candidates: Vec<_> = self.endpoints.iter()
             .filter(|(e, _)| e.method == method)
+            .filter(|(e, _)| e.segments.len() == segments.len())
             .map(|(e, h)| (e, h, e.try_match(&segments)))
             .filter(|(_, _, bindings)| bindings.is_some())
             .collect();
@@ -29,7 +30,17 @@ impl EndpointTable {
         } else if candidates.len() > 1 {
             eprintln!("Ambiguous endpoint match! Possible to match {:?} {} to the following endpoints: {:?}",
                       method, url.as_string().unwrap(),
-                      candidates.iter().map(|(e, _, _)| format!("{:?}", e)).collect::<Vec<_>>());
+                      candidates.iter()
+                          .map(|(e, _, _)|
+                              e.segments.iter().map(
+                                  |s| match s {
+                                      Segment::Constant(s) => s.clone(),
+                                      Segment::Variable(s) => format!("<{}>", s),
+                                  }
+                              )
+                                  .fold(String::from(""), |a, b| format!("{}/{}", a, b))
+                          )
+                          .collect::<Vec<_>>());
         }
 
         return Some((candidates[0].1, candidates[0].2.clone().unwrap()));
@@ -51,10 +62,6 @@ impl EndpointURI {
     }
 
     pub fn try_match(&self, other: &Vec<Segment>) -> Option<Bindings> {
-        if self.segments.len() != other.len() {
-            return None;
-        }
-
         let mut bindings = Bindings::new();
 
         for (a, b) in self.segments.iter().zip(other.iter()) {

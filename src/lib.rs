@@ -42,6 +42,7 @@ mod tests {
     #[test]
     fn webserver() {
         let service = WebService::new()
+            .with_root("./site")
             .with_endpoint(Endpoint::new(GET, "/print/<text>"), Printer {})
             .with_endpoint(Endpoint::new(GET, "/print/<color>/<text>"), ColorPrinter {});
         let mut server = Server::new(service);
