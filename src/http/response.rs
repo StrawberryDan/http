@@ -32,7 +32,7 @@ impl Response {
         return self;
     }
 
-    pub fn with_cookie(mut self, cookie: &Cookie) -> Self {
+    pub fn with_cookie(mut self, cookie: Cookie) -> Self {
         self.header.add("Set-Cookie", cookie.to_string());
         return self;
     }

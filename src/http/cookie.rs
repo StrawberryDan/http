@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-type DateTime = chrono::DateTime<chrono::Utc>;
+pub type DateTime = chrono::DateTime<chrono::Utc>;
 
 pub struct Cookie {
     name: String,
@@ -39,7 +39,7 @@ impl Display for Cookie {
         write!(f, "{}={}", self.name, self.value)?;
 
         if let Some(expire) = &self.expiration {
-            write!(f, "; Expire={}", expire.to_rfc2822())?;
+            write!(f, "; Expires={}", expire.to_rfc2822())?;
         }
 
         if self.http_only {

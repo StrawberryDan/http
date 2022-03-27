@@ -105,10 +105,10 @@ impl WebService {
     }
 
     fn find_requested_path(&self, url: &URL) -> Option<PathBuf> {
-        let resource = if url.resource() == "/" {
-            PathBuf::from("./index")
+        let resource = if url.resource().len() == 0 {
+            PathBuf::from("index")
         } else {
-            PathBuf::from(format!(".{}", url.resource()))
+            PathBuf::from(url.resource_string())
         };
 
         let mut path = self.root.join(resource);

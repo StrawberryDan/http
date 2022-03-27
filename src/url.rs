@@ -30,7 +30,7 @@ impl URL {
             return Err(());
         }
 
-        let mut s = s.to_string();
+        let s = s.to_string();
 
         let (protocol, s) = s.split_once("://").unwrap_or(("", &s));
         let (user, s) = s.split_once("@").unwrap_or(("", s));
@@ -72,7 +72,7 @@ impl URL {
             } else {
                 Some(port.parse().map_err(|_| ())?)
             },
-            resource: resource.split("/").map(|s| Self::decode(s)).collect(),
+            resource: resource.split("/").filter(|s| !s.is_empty()).map(|s| Self::decode(s)).collect(),
             parameters,
         })
     }
@@ -152,8 +152,12 @@ impl URL {
         Self { port, ..self }
     }
 
-    pub fn resource(&self) -> String {
-        self.resource.iter().fold(String::new(), |a, b| format!("{}/{}", a, b))
+    pub fn resource(&self) -> &Vec<String> {
+        &self.resource
+    }
+
+    pub fn resource_string(&self) -> String {
+        self.resource.clone().into_iter().reduce(|a, b| format!("{}/{}", a, b)).unwrap_or(String::from("/"))
     }
 
     pub fn with_resource<S: Borrow<str>>(self, resource: S) -> Self {
@@ -163,6 +167,14 @@ impl URL {
             resource: resource.split("/").filter(|s| !s.is_empty()).map(|s| s.to_string()).collect(),
             ..self
         }
+    }
+
+    pub fn push<S: Borrow<str>>(&mut self, s: S) {
+        self.resource.push(s.borrow().to_owned());
+    }
+
+    pub fn pop(&mut self) {
+        self.resource.pop();
     }
 
     pub fn param(&self, key: impl Borrow<str>) -> Option<&str> {
@@ -193,7 +205,7 @@ impl URL {
             s += &format!(":{}", port);
         }
 
-        s += &self.resource().split("/").filter(|s| !s.is_empty()).fold(String::new(), |a, b| format!("{}/{}", a, encode(&b)));
+        s += &self.resource.iter().map(|s| encode(s)).fold(String::from(""), |a, b| format!("{}/{}", a, b));
 
         if !self.parameters.is_empty() {
             s += "?";
