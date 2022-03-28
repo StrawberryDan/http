@@ -9,6 +9,7 @@ impl FromStr for Element {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let tokens = tokenise(s)?;
         let lexemes = lex(tokens)?;
+        let lexemes = fix_script_tags(lexemes)?;
         let levelled = tag_depths(lexemes)?;
         let tree = parse_tree(levelled).remove(0);
         parse_element(tree)
@@ -58,6 +59,10 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
                 inside_tag = true;
             }
 
+            (Some(CloseTag), c) if c.is_whitespace() => {
+                continue;
+            }
+
             (Some(CloseTag), c) => {
                 tokens.push(next.take().unwrap());
                 next = Some(Word(String::from(c)));
@@ -74,7 +79,11 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
                 next = Some(ClosingMark);
             }
 
-            (Some(OpenTag), c) if !c.is_whitespace() => {
+            (Some(OpenTag), c) if c.is_whitespace() => {
+                continue;
+            }
+
+            (Some(OpenTag), c) => {
                 tokens.push(next.take().unwrap());
                 next = Some(Word(String::from(c)));
             }
@@ -254,6 +263,61 @@ enum Lexeme {
     Text(Vec<Token>),
 }
 
+impl Display for Lexeme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Lexeme::OpeningTag(v) | Lexeme::ClosingTag(v) | Lexeme::Text(v) => {
+                write!(f, "{}", v.iter().map(|x| x.to_string()).reduce(|a, b| format!("{}{}", a, b)).unwrap())
+            }
+        }
+    }
+}
+
+fn fix_script_tags(mut lexemes: Vec<Lexeme>) -> Result<Vec<Lexeme>, ()> {
+    let opening_tags: Vec<_> = lexemes.iter().enumerate().filter(|l| if let Lexeme::OpeningTag(_) = l.1 { true } else { false }).collect();
+    let closing_tags: Vec<_> = lexemes.iter().enumerate().filter(|l| if let Lexeme::ClosingTag(_) = l.1 { true } else { false }).collect();
+
+    let script_opens: Vec<_> = opening_tags.iter().filter(|l| match l.1 {
+        Lexeme::OpeningTag(t) => {
+            if let Token::Word(s) = &t[1] {
+                return s == "script";
+            } else {
+                unreachable!()
+            }
+        }
+        _ => unreachable!(),
+    }).collect();
+
+    let script_closes: Vec<_> = closing_tags.iter().filter(|l| match l.1 {
+        Lexeme::ClosingTag(t) => {
+            if let Token::Word(s) = &t[1] {
+                return s == "script";
+            } else {
+                unreachable!()
+            }
+        }
+        _ => unreachable!(),
+    }).collect();
+
+    if script_opens.len() != script_closes.len() {
+        return Err(());
+    }
+
+    let script_pairs: Vec<_> = script_opens.into_iter().map(|x| x.0).zip(script_closes.into_iter().map(|x| x.0)).rev().collect();
+
+    for (start, end) in script_pairs {
+        let mut inner = Vec::new();
+        for _ in start + 1 .. end {
+            inner.push(lexemes.remove(start + 1));
+        }
+
+        let inner = inner.into_iter().map(|x| x.to_string()).reduce(|a, b| format!("{}{}", a, b)).unwrap();
+        lexemes.insert(start + 1, Lexeme::Text(vec![Token::Word(inner)]));
+    }
+
+    return Ok(lexemes);
+}
+
 fn tag_depths(lexemes: Vec<Lexeme>) -> Result<Vec<(Lexeme, isize)>, ()> {
     let mut x: isize = 0;
 
@@ -294,6 +358,10 @@ fn parse_tree(mut lexemes: Vec<(Lexeme, isize)>) -> Vec<Tree> {
     let mut result = Vec::new();
 
     while !lexemes.is_empty() {
+        while matches!(&lexemes[0], (Lexeme::Text(_), _)) {
+            result.push(Tree::Leaf(lexemes.remove(0).0));
+        }
+
         let start = lexemes.remove(0);
         let end_idx = (0..lexemes.len()).find(|i| lexemes[*i].1 == start.1).unwrap();
         let end = lexemes.remove(end_idx);

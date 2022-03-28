@@ -1,5 +1,7 @@
 use std::borrow::Borrow;
 use std::fmt::{Display, Formatter};
+use std::fs::File;
+use std::path::Path;
 use std::str::FromStr;
 use std::vec::IntoIter;
 use crate::html::element::Element;
@@ -22,6 +24,11 @@ impl Document {
         );
 
         Self { root }
+    }
+
+    pub fn from_file<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, ()> {
+        let string = std::fs::read_to_string(path).map_err(|_| ())?;
+        return string.parse();
     }
 
     pub fn element_by_id<B: Borrow<str> + ?Sized>(&self, id: &B) -> Option<&Tag> {

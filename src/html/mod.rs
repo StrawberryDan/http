@@ -44,4 +44,10 @@ mod test {
         let title = html.element_by_id("title").unwrap();
         println!("{:#?}", title.content());
     }
+
+    #[test]
+    fn from_file() {
+        let html = Document::from_file("./site/index.html").unwrap();
+        println!("{}", html);
+    }
 }
