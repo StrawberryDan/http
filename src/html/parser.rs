@@ -21,18 +21,15 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
 
     let mut tokens = Vec::new();
     let mut next: Option<Token> = None;
-    let mut inside_tag = false;
 
     for c in s.chars() {
         match (&next, c) {
             (None, '<') => {
                 next = Some(OpenTag);
-                inside_tag = true;
             }
 
             (None, '>') => {
                 next = Some(CloseTag);
-                inside_tag = false;
             }
 
             (None, c) if c.is_whitespace() => continue,
@@ -56,7 +53,6 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
             (Some(CloseTag), '<') => {
                 tokens.push(next.take().unwrap());
                 next = Some(OpenTag);
-                inside_tag = true;
             }
 
             (Some(CloseTag), c) if c.is_whitespace() => {
@@ -71,7 +67,6 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
             (Some(_), '>') => {
                 tokens.push(next.take().unwrap());
                 next = Some(CloseTag);
-                inside_tag = false;
             }
 
             (Some(OpenTag), '/') => {
@@ -96,25 +91,17 @@ fn tokenise(s: &str) -> Result<Vec<Token>, ()> {
             (Some(Word(_)), '<') => {
                 tokens.push(next.take().unwrap());
                 next = Some(OpenTag);
-                inside_tag = true;
             }
 
-            (Some(Word(_)), c) if !c.is_whitespace() && inside_tag => {
+            (Some(Word(_)), c) if !c.is_whitespace() => {
                 match next.as_mut().unwrap() {
                     Word(s) => s.push(c),
                     _ => unreachable!(),
                 }
             }
 
-            (Some(Word(_)), c) if c.is_whitespace() && inside_tag => {
+            (Some(Word(_)), c) if c.is_whitespace() => {
                 tokens.push(next.take().unwrap());
-            }
-
-            (Some(Word(_)), c) if !inside_tag => {
-                match next.as_mut().unwrap() {
-                    Word(s) => s.push(c),
-                    _ => unreachable!(),
-                }
             }
 
             (Some(Quote(_)), '"') => {
@@ -246,7 +233,10 @@ fn lex(tokens: Vec<Token>) -> Result<Vec<Lexeme>, ()> {
 
             (Some(Text(_)), _) => {
                 match &mut next {
-                    Some(Text(v)) => v.push(token),
+                    Some(Text(v)) => {
+                        v.push(Word(" ".to_string()));
+                        v.push(token);
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -307,7 +297,7 @@ fn fix_script_tags(mut lexemes: Vec<Lexeme>) -> Result<Vec<Lexeme>, ()> {
 
     for (start, end) in script_pairs {
         let mut inner = Vec::new();
-        for _ in start + 1 .. end {
+        for _ in start + 1..end {
             inner.push(lexemes.remove(start + 1));
         }
 
