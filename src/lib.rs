@@ -4,7 +4,6 @@ extern crate core;
 
 mod thread_pool;
 
-pub mod html;
 pub mod http;
 pub mod mime;
 pub mod server;
