@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use crate::html::{Element, Tag};
+use crate::html::element::Element;
+use crate::html::tag::Tag;
 
 impl FromStr for Element {
     type Err = ();
