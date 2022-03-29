@@ -20,7 +20,7 @@ use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use crate::server::Service;
+use crate::server::WebService;
 use crate::url::URL;
 
 #[derive(Debug, PartialOrd, PartialEq, Copy, Clone, Eq, Ord)]
@@ -66,12 +66,12 @@ pub enum Error {
     ConnectionClosed,
 }
 
-pub struct WebService {
+pub struct WebServer {
     root: PathBuf,
     endpoints: EndpointTable,
 }
 
-impl WebService {
+impl WebServer {
     pub fn new() -> Self {
         Self {
             root: PathBuf::from("./"),
@@ -145,7 +145,7 @@ impl WebService {
     }
 }
 
-impl Service for WebService {
+impl WebService for WebServer {
     fn handle_connection(&self, con: impl Read + Write, client: SocketAddr) {
         println!("Started serving client: {}", client);
         let mut stream = Stream::new(con);

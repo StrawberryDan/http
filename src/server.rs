@@ -4,17 +4,27 @@ use std::sync::Arc;
 
 use crate::thread_pool::ThreadPool;
 
-pub struct Server<H: Service + Send + Sync + 'static> {
+pub struct Server<H: WebService + Send + Sync + 'static> {
     socket: SocketAddr,
     handler: Arc<H>,
 }
 
-impl<H: Service + Send + Sync + 'static> Server<H> {
+impl<H: WebService + Send + Sync + 'static> Server<H> {
     pub fn new(handler: H) -> Self {
         Self {
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080),
             handler: Arc::new(handler),
         }
+    }
+
+    pub fn with_address(self, addr: IpAddr) -> Self {
+        let socket = SocketAddr::new(addr, self.socket.port());
+        Self { socket, .. self }
+    }
+
+    pub fn with_port(self, port: u16) -> Self {
+        let socket = SocketAddr::new(self.socket.ip(), port);
+        Self { socket, .. self }
     }
 
     pub fn with_socket(self, socket: SocketAddr) -> Self {
@@ -78,6 +88,6 @@ impl<H: Service + Send + Sync + 'static> Server<H> {
     }
 }
 
-pub trait Service {
+pub trait WebService {
     fn handle_connection(&self, con: impl Read + Write, client: SocketAddr);
 }

@@ -13,8 +13,8 @@ pub mod ws;
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
-    use crate::http::{Bindings, Endpoint, EndpointFunction, Request, Response, WebService};
-    use crate::server::{Server, Service};
+    use crate::http::{Bindings, Endpoint, EndpointFunction, Request, Response, WebServer};
+    use crate::server::{Server, WebService};
     use crate::ws::Message;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use crate::http::Method::GET;
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn webserver() {
-        let service = WebService::new()
+        let service = WebServer::new()
             .with_root("./site")
             .with_endpoint(Endpoint::new(GET, "/print/<text>"), Printer {})
             .with_endpoint(Endpoint::new(GET, "/print/<color>/<text>"), ColorPrinter {});
@@ -52,7 +52,7 @@ mod tests {
 
     pub struct WebSocketService {}
 
-    impl Service for WebSocketService {
+    impl WebService for WebSocketService {
         fn handle_connection(&self, con: impl Read + Write, client: SocketAddr) {
             use std::io::ErrorKind::ConnectionAborted;
             use crate::http::Stream as HTTPStream;
@@ -80,7 +80,7 @@ mod tests {
     fn websocket() {
         use std::thread::spawn;
 
-        let mut httpserver = Server::new(WebService::new());
+        let mut httpserver = Server::new(WebServer::new());
 
         let mut wsserver = Server::new(WebSocketService {})
             .with_socket(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8081));
