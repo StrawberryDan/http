@@ -29,5 +29,5 @@ impl Endpoint {
 }
 
 pub trait EndpointFunction {
-    fn handle(&self, request: Request, bindings: Bindings) -> Option<Response>;
+    fn handle(&self, request: Request, bindings: Bindings) -> Response;
 }

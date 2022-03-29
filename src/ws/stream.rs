@@ -36,8 +36,7 @@ impl<S: Read + Write> Stream<S> {
                 )[..],
             );
 
-            let response = Response::new()
-                .with_code(101)
+            let response = Response::new(101)
                 .with_header("Upgrade", "websocket")
                 .with_header("Connection", "Upgrade")
                 .with_header("Sec-WebSocket-Accept", accept_key.as_str());
