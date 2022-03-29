@@ -14,11 +14,14 @@ pub use response::*;
 pub use stream::*;
 pub use endpoint::*;
 
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 
 use crate::server::WebService;
+use crate::url::URL;
 
 #[derive(Debug, PartialOrd, PartialEq, Copy, Clone, Eq, Ord)]
 pub enum Method {
@@ -64,25 +67,80 @@ pub enum Error {
 }
 
 pub struct WebServer {
+    root: PathBuf,
     endpoints: EndpointTable,
 }
 
 impl WebServer {
     pub fn new() -> Self {
         Self {
+            root: PathBuf::from("./"),
             endpoints: EndpointTable::new(),
         }
     }
 
-    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, mut endpoint: Endpoint, handler: H) -> Self {
-        let endpoint = if endpoint.resource() == "/" {
-            Endpoint::new(endpoint.verb(), "")
-        } else {
-            endpoint
-        };
+    pub fn with_root(self, root: impl AsRef<Path>) -> Self {
+        Self { root: std::fs::canonicalize(root.as_ref()).unwrap(), ..self }
+    }
 
+    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, endpoint: Endpoint, handler: H) -> Self {
         self.endpoints.add(endpoint, Box::new(handler));
         self
+    }
+
+    pub fn handle_file_request(&self, req: &Request, _: &Bindings) -> Option<Response> {
+        return match &req.method() {
+            Method::GET => {
+                let path = self.find_requested_path(req.url())?;
+                Response::from_file(200, None, path).ok()
+            }
+
+            Method::TRACE => {
+                let path = self.find_requested_path(req.url())?;
+                Some(Response::from_file(200, None, path).ok()?.with_body("application/octet-stream", Vec::new()))
+            }
+
+            _ => None,
+        };
+    }
+
+    fn find_requested_path(&self, url: &URL) -> Option<PathBuf> {
+        let resource = if url.resource().len() == 0 {
+            PathBuf::from("index")
+        } else {
+            PathBuf::from(url.resource_string())
+        };
+
+        let mut path = self.root.join(resource);
+
+        if !path.exists() {
+            let stem = path.file_stem()?;
+            if path.file_stem().is_some() && path.extension().is_none() {
+                let dir = path.parent()?.read_dir().ok()?;
+                let candidates: Vec<_> = dir
+                    .filter(|f| f.is_ok())
+                    .map(|f| unsafe { f.unwrap_unchecked().path() })
+                    .filter(|f| f.file_stem().map(|f| f == stem).unwrap_or(false))
+                    .collect();
+                if candidates.is_empty() {
+                    return None;
+                }
+                path = candidates[0].clone();
+            }
+        }
+
+        let canonicalised = std::fs::canonicalize(path).unwrap();
+        if !canonicalised.starts_with(&self.root) {
+            return None;
+        }
+
+        return Some(canonicalised);
+    }
+
+    fn not_found_response(_: &Request, _: &Bindings) -> Option<Response> {
+        Some(
+            Response::from_text(404, "text/html", "<html><body><h1>Not Found</h1></body></html>")
+        )
     }
 }
 
@@ -103,12 +161,17 @@ impl WebService for WebServer {
                 }
             };
 
-            let response = self
+            let callback = self
                 .endpoints
                 .find_match(req.method(), req.url())
-                .map(|(h, b)| h.handle(req.clone(), b))
-                .unwrap_or(Response::new(404));
+                .map(|(h, b)| h.handle(req.clone(), b));
 
+            let response = match callback {
+                Some(res) => res,
+                None => self.handle_file_request(&req, &HashMap::new())
+                    .or(Self::not_found_response(&req, &HashMap::new()))
+                    .unwrap(),
+            };
 
             match stream.send(response) {
                 Ok(_) => (),

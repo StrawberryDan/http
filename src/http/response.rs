@@ -50,23 +50,23 @@ impl Response {
             .with_body(mime, text.as_bytes().to_vec())
     }
 
-    pub fn from_file(code: usize, path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub fn from_file(code: usize, mime: Option<&str>, path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut file = File::open(path.as_ref()).map_err(|e| Error::IOError(e))?;
-        let mime = extension_to_mime(
-            path.as_ref()
-                .extension()
-                .map(|s| s.to_str())
-                .flatten()
-                .unwrap_or(""),
+        let mime = mime.unwrap_or(
+            extension_to_mime(
+                path.as_ref()
+                    .extension()
+                    .map(|s| s.to_str())
+                    .flatten()
+                    .unwrap_or("")
+            ),
         );
 
         let mut body = Vec::new();
         file.read_to_end(&mut body).map_err(|e| Error::IOError(e))?;
 
-        Ok(
-            Response::new(code)
-                .with_body(mime, body)
-        )
+        Ok(Response::new(code)
+            .with_body(mime, body))
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {

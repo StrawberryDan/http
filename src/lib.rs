@@ -32,10 +32,10 @@ mod tests {
     impl EndpointFunction for ColorPrinter {
         fn handle(&self, _: Request, bindings: Bindings) -> Response {
             Response::from_text(200, "text/html",
-                                &format!("<html><body><h1 style=\"color:{}\">{}</h1></body></html>",
-                                         bindings.get("color").unwrap(),
-                                         bindings.get("text").unwrap(),
-                                ),
+                                     &format!("<html><body><h1 style=\"color:{}\">{}</h1></body></html>",
+                                              bindings.get("color").unwrap(),
+                                              bindings.get("text").unwrap(),
+                                     ),
             )
         }
     }
@@ -43,6 +43,7 @@ mod tests {
     #[test]
     fn webserver() {
         let service = WebServer::new()
+            .with_root("./site")
             .with_endpoint(Endpoint::new(GET, "/print/<text>"), Printer {})
             .with_endpoint(Endpoint::new(GET, "/print/<color>/<text>"), ColorPrinter {});
         let mut server = Server::new(service);
