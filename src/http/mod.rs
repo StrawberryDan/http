@@ -74,7 +74,13 @@ impl WebServer {
         }
     }
 
-    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, endpoint: Endpoint, handler: H) -> Self {
+    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, mut endpoint: Endpoint, handler: H) -> Self {
+        let endpoint = if endpoint.resource() == "/" {
+            Endpoint::new(endpoint.verb(), "")
+        } else {
+            endpoint
+        };
+
         self.endpoints.add(endpoint, Box::new(handler));
         self
     }
