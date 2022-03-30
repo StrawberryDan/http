@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::io::{BufRead, BufReader, Read};
+use std::string::FromUtf8Error;
 
 use super::*;
 use crate::url::URL;
@@ -93,5 +94,9 @@ impl Request {
 
     pub fn body(&self) -> &Vec<u8> {
         &self.body
+    }
+
+    pub fn body_as_string(&self) -> Result<String, FromUtf8Error> {
+        String::from_utf8(self.body.clone())
     }
 }
