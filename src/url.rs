@@ -43,61 +43,38 @@ impl URL {
         let parameters: HashMap<String, String> = parameters.split("&")
             .filter(|s| !s.is_empty())
             .map(|p| p.split_once("=").unwrap_or((p, "")))
-            .map(|(a, b)| (Self::decode(a), Self::decode(b)))
+            .map(|(a, b)| (decode(a), decode(b)))
             .collect();
 
         Ok(Self {
             protocol: if protocol.is_empty() {
                 None
             } else {
-                Some(Self::decode(protocol.to_string()))
+                Some(decode(protocol.to_string()))
             },
             username: if username.is_empty() {
                 None
             } else {
-                Some(Self::decode(user.to_string()))
+                Some(decode(user.to_string()))
             },
             password: if password.is_empty() {
                 None
             } else {
-                Some(Self::decode(password.to_string()))
+                Some(decode(password.to_string()))
             },
             host: if host.is_empty() {
                 None
             } else {
-                Some(Self::decode(host.to_string()))
+                Some(decode(host.to_string()))
             },
             port: if port.is_empty() {
                 None
             } else {
                 Some(port.parse().map_err(|_| ())?)
             },
-            resource: resource.split("/").filter(|s| !s.is_empty()).map(|s| Self::decode(s)).collect(),
+            resource: resource.split("/").filter(|s| !s.is_empty()).map(|s| decode(s)).collect(),
             parameters,
         })
-    }
-
-    fn decode(s: impl Borrow<str>) -> String {
-        let mut s = s.borrow().to_owned();
-
-        while let Some(i) = s.find("%") {
-            let (prefix, middle, suffix) = (
-                (0..i)
-                    .map(|n| s.chars().nth(n).unwrap())
-                    .collect::<String>(),
-                (i + 1..i + 3)
-                    .map(|n| s.chars().nth(n).unwrap())
-                    .collect::<String>(),
-                (i + 3..s.len())
-                    .map(|n| s.chars().nth(n).unwrap())
-                    .collect::<String>(),
-            );
-
-            let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ()).unwrap() as char;
-            s = format!("{}{}{}", prefix, decoded, suffix);
-        }
-
-        return s;
     }
 
     pub fn protocol(&self) -> Option<&String> {
@@ -220,7 +197,30 @@ impl URL {
     }
 }
 
-fn encode<S: Borrow<str>>(s: &S) -> String {
+pub fn decode(s: impl Borrow<str>) -> String {
+    let mut s = s.borrow().to_owned();
+
+    while let Some(i) = s.find("%") {
+        let (prefix, middle, suffix) = (
+            (0..i)
+                .map(|n| s.chars().nth(n).unwrap())
+                .collect::<String>(),
+            (i + 1..i + 3)
+                .map(|n| s.chars().nth(n).unwrap())
+                .collect::<String>(),
+            (i + 3..s.len())
+                .map(|n| s.chars().nth(n).unwrap())
+                .collect::<String>(),
+        );
+
+        let decoded = u8::from_str_radix(&middle, 16).map_err(|_| ()).unwrap() as char;
+        s = format!("{}{}{}", prefix, decoded, suffix);
+    }
+
+    return s;
+}
+
+pub fn encode<S: Borrow<str>>(s: &S) -> String {
     s.borrow()
         .chars()
         .map(|c| match c {
