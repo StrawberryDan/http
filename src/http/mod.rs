@@ -6,6 +6,7 @@ mod stream;
 mod cookie;
 mod header;
 
+use std::borrow::Borrow;
 // Exports
 pub use header::*;
 pub use cookie::*;
@@ -83,8 +84,10 @@ impl WebServer {
         Self { root: std::fs::canonicalize(root.as_ref()).unwrap(), ..self }
     }
 
-    pub fn with_endpoint<H: EndpointFunction + Send + Sync + 'static>(mut self, endpoint: Endpoint, handler: H) -> Self {
-        self.endpoints.add(endpoint, Box::new(handler));
+    pub fn with_endpoint<S, H>(mut self, method: Method, endpoint: &S, handler: H) -> Self
+        where S: Borrow<str> + ?Sized, H: EndpointFunction + Send + Sync + 'static
+    {
+        self.endpoints.add(Endpoint::new(method, endpoint.borrow()), Box::new(handler));
         self
     }
 

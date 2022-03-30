@@ -13,7 +13,7 @@ pub mod ws;
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
-    use crate::http::{Bindings, Endpoint, EndpointFunction, Request, Response, WebServer};
+    use crate::http::{Bindings, EndpointFunction, Request, Response, WebServer};
     use crate::server::{Server, WebService};
     use crate::ws::Message;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -44,8 +44,8 @@ mod tests {
     fn webserver() {
         let service = WebServer::new()
             .with_root("./site")
-            .with_endpoint(Endpoint::new(GET, "/print/<text>"), Printer {})
-            .with_endpoint(Endpoint::new(GET, "/print/<color>/<text>"), ColorPrinter {});
+            .with_endpoint(GET, "/print/<text>", Printer {})
+            .with_endpoint(GET, "/print/<color>/<text>", ColorPrinter {});
         let mut server = Server::new(service);
         server.run_secure();
     }
