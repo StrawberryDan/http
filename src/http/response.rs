@@ -24,8 +24,8 @@ impl Response {
         }.with_header("Content-Length", "0")
     }
 
-    pub fn redirect(url: &URL) -> Self {
-        Self::new(202).with_header("Location", url.as_string().unwrap())
+    pub fn redirect<S: Borrow<str> + ?Sized>(resource: &S) -> Self {
+        Self::new(302).with_header("Location", resource.borrow())
     }
 
     pub fn with_header(mut self, key: &str, value: impl Borrow<str>) -> Self {

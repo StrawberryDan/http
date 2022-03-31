@@ -18,6 +18,7 @@ mod tests {
     use crate::ws::Message;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use crate::http::Method::GET;
+    use crate::url::URL;
 
     struct Printer {}
 
@@ -32,20 +33,30 @@ mod tests {
     impl EndpointFunction for ColorPrinter {
         fn handle(&self, _: Request, bindings: Bindings) -> Response {
             Response::from_text(200, "text/html",
-                                     &format!("<html><body><h1 style=\"color:{}\">{}</h1></body></html>",
-                                              bindings.get("color").unwrap(),
-                                              bindings.get("text").unwrap(),
-                                     ),
+                                &format!("<html><body><h1 style=\"color:{}\">{}</h1></body></html>",
+                                         bindings.get("color").unwrap(),
+                                         bindings.get("text").unwrap(),
+                                ),
             )
         }
     }
+
+    struct SecurePage;
+
+    impl EndpointFunction for SecurePage {
+        fn handle(&self, request: Request, bindings: Bindings) -> Response {
+            Response::redirect("index.html")
+        }
+    }
+
 
     #[test]
     fn webserver() {
         let service = WebServer::new()
             .with_root("./site")
             .with_endpoint(GET, "/print/<text>", Printer {})
-            .with_endpoint(GET, "/print/<color>/<text>", ColorPrinter {});
+            .with_endpoint(GET, "/print/<color>/<text>", ColorPrinter {})
+            .with_file_mask("secure.html", SecurePage);
         let mut server = Server::new(service);
         server.run_secure();
     }

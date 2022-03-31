@@ -70,6 +70,7 @@ pub enum Error {
 pub struct WebServer {
     root: PathBuf,
     endpoints: EndpointTable,
+    file_masks: HashMap<PathBuf, Box<dyn EndpointFunction + Send + Sync + 'static>>,
 }
 
 impl WebServer {
@@ -77,6 +78,7 @@ impl WebServer {
         Self {
             root: PathBuf::from("./"),
             endpoints: EndpointTable::new(),
+            file_masks: HashMap::new(),
         }
     }
 
@@ -91,15 +93,28 @@ impl WebServer {
         self
     }
 
-    pub fn handle_file_request(&self, req: &Request, _: &Bindings) -> Option<Response> {
+    pub fn with_file_mask<P, H>(mut self, file: &P, handler: H) -> Self
+        where P: AsRef<Path> + ?Sized, H: EndpointFunction + Send + Sync + 'static
+    {
+        let path = self.root.join(file.as_ref());
+        let path = std::fs::canonicalize(path).unwrap();
+        self.file_masks.insert(path, Box::new(handler));
+        self
+    }
+
+    pub fn handle_file_request(&self, req: Request) -> Option<Response> {
+        let path = self.find_requested_path(req.url())?;
+
+        if let Some(handler) = self.file_masks.get(&path) {
+            return Some(handler.handle(req, Bindings::new()));
+        }
+
         return match &req.method() {
             Method::GET => {
-                let path = self.find_requested_path(req.url())?;
                 Response::from_file(200, None, path).ok()
             }
 
             Method::TRACE => {
-                let path = self.find_requested_path(req.url())?;
                 Some(Response::from_file(200, None, path).ok()?.with_body("application/octet-stream", Vec::new()))
             }
 
@@ -140,10 +155,8 @@ impl WebServer {
         return Some(canonicalised);
     }
 
-    fn not_found_response(_: &Request, _: &Bindings) -> Option<Response> {
-        Some(
+    fn not_found_response() -> Response {
             Response::from_text(404, "text/html", "<html><body><h1>Not Found</h1></body></html>")
-        )
     }
 }
 
@@ -171,9 +184,8 @@ impl WebService for WebServer {
 
             let response = match callback {
                 Some(res) => res,
-                None => self.handle_file_request(&req, &HashMap::new())
-                    .or(Self::not_found_response(&req, &HashMap::new()))
-                    .unwrap(),
+                None => self.handle_file_request(req)
+                    .unwrap_or(WebServer::not_found_response()),
             };
 
             match stream.send(response) {
