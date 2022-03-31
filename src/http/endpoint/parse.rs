@@ -4,7 +4,7 @@ use super::*;
 use crate::url::URL;
 
 pub struct EndpointTable {
-    endpoints: Vec<(EndpointURI, Box<dyn EndpointFunction + Send + Sync>)>,
+    endpoints: Vec<(EndpointURI, Box<dyn EndpointResponder + Send + Sync>)>,
 }
 
 impl EndpointTable {
@@ -12,11 +12,11 @@ impl EndpointTable {
         Self { endpoints: Vec::new() }
     }
 
-    pub fn add(&mut self, endpoint: Endpoint, handler: Box<dyn EndpointFunction + Send + Sync>) {
+    pub fn add(&mut self, endpoint: Endpoint, handler: Box<dyn EndpointResponder + Send + Sync>) {
         self.endpoints.push((EndpointURI::from(&endpoint), handler));
     }
 
-    pub fn find_match(&self, method: Method, url: &URL) -> Option<(&Box<dyn EndpointFunction + Send + Sync>, Bindings)> {
+    pub fn find_match(&self, method: Method, url: &URL) -> Option<(&Box<dyn EndpointResponder + Send + Sync>, Bindings)> {
         let segments: Vec<_> = url.resource().iter().map(|s| Segment::Constant(s.to_string())).collect();
 
         let candidates: Vec<_> = self.endpoints.iter()

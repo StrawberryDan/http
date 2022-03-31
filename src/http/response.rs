@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use crate::http::Cookie;
-use crate::url::URL;
 
 #[derive(Debug, Clone)]
 pub struct Response {

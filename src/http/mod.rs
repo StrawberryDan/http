@@ -6,7 +6,6 @@ mod stream;
 mod cookie;
 mod header;
 
-use std::borrow::Borrow;
 // Exports
 pub use header::*;
 pub use cookie::*;
@@ -15,6 +14,7 @@ pub use response::*;
 pub use stream::*;
 pub use endpoint::*;
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
@@ -70,7 +70,7 @@ pub enum Error {
 pub struct WebServer {
     root: PathBuf,
     endpoints: EndpointTable,
-    file_masks: HashMap<PathBuf, Box<dyn EndpointFunction + Send + Sync + 'static>>,
+    file_masks: HashMap<PathBuf, Box<dyn FileResponder + Send + Sync + 'static>>,
 }
 
 impl WebServer {
@@ -87,14 +87,14 @@ impl WebServer {
     }
 
     pub fn with_endpoint<S, H>(mut self, method: Method, endpoint: &S, handler: H) -> Self
-        where S: Borrow<str> + ?Sized, H: EndpointFunction + Send + Sync + 'static
+        where S: Borrow<str> + ?Sized, H: EndpointResponder + Send + Sync + 'static
     {
         self.endpoints.add(Endpoint::new(method, endpoint.borrow()), Box::new(handler));
         self
     }
 
     pub fn with_file_mask<P, H>(mut self, file: &P, handler: H) -> Self
-        where P: AsRef<Path> + ?Sized, H: EndpointFunction + Send + Sync + 'static
+        where P: AsRef<Path> + ?Sized, H: FileResponder + Send + Sync + 'static
     {
         let path = self.root.join(file.as_ref());
         let path = std::fs::canonicalize(path).unwrap();
@@ -106,7 +106,7 @@ impl WebServer {
         let path = self.find_requested_path(req.url())?;
 
         if let Some(handler) = self.file_masks.get(&path) {
-            return Some(handler.handle(req, Bindings::new()));
+            return Some(handler.response(req, path));
         }
 
         return match &req.method() {
@@ -136,18 +136,18 @@ impl WebServer {
             if path.file_stem().is_some() && path.extension().is_none() {
                 let dir = path.parent()?.read_dir().ok()?;
                 let candidates: Vec<_> = dir
-                    .filter(|f| f.is_ok())
-                    .map(|f| unsafe { f.unwrap_unchecked().path() })
+                    .filter_map(|f| f.ok().map(|f| f.path()))
                     .filter(|f| f.file_stem().map(|f| f == stem).unwrap_or(false))
                     .collect();
                 if candidates.is_empty() {
                     return None;
                 }
+
                 path = candidates[0].clone();
             }
         }
 
-        let canonicalised = std::fs::canonicalize(path).unwrap();
+        let canonicalised = std::fs::canonicalize(path).ok()?;
         if !canonicalised.starts_with(&self.root) {
             return None;
         }
@@ -180,7 +180,7 @@ impl WebService for WebServer {
             let callback = self
                 .endpoints
                 .find_match(req.method(), req.url())
-                .map(|(h, b)| h.handle(req.clone(), b));
+                .map(|(h, b)| h.response(req.clone(), b));
 
             let response = match callback {
                 Some(res) => res,
@@ -202,4 +202,8 @@ impl WebService for WebServer {
 
         println!("Stopped serving client: {}", client);
     }
+}
+
+pub trait FileResponder {
+    fn response(&self, req: Request, file: PathBuf) -> Response;
 }

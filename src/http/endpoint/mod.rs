@@ -28,6 +28,6 @@ impl Endpoint {
     }
 }
 
-pub trait EndpointFunction {
-    fn handle(&self, request: Request, bindings: Bindings) -> Response;
+pub trait EndpointResponder {
+    fn response(&self, request: Request, bindings: Bindings) -> Response;
 }

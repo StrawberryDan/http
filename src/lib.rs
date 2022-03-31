@@ -13,25 +13,25 @@ pub mod ws;
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
-    use crate::http::{Bindings, EndpointFunction, Request, Response, WebServer};
+    use crate::http::{Bindings, EndpointResponder, FileResponder, Request, Response, WebServer};
     use crate::server::{Server, WebService};
     use crate::ws::Message;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::path::PathBuf;
     use crate::http::Method::GET;
-    use crate::url::URL;
 
     struct Printer {}
 
-    impl EndpointFunction for Printer {
-        fn handle(&self, _: Request, bindings: Bindings) -> Response {
+    impl EndpointResponder for Printer {
+        fn response(&self, _: Request, bindings: Bindings) -> Response {
             Response::from_text(200, "text/plain", bindings.get("text").unwrap())
         }
     }
 
     struct ColorPrinter {}
 
-    impl EndpointFunction for ColorPrinter {
-        fn handle(&self, _: Request, bindings: Bindings) -> Response {
+    impl EndpointResponder for ColorPrinter {
+        fn response(&self, _: Request, bindings: Bindings) -> Response {
             Response::from_text(200, "text/html",
                                 &format!("<html><body><h1 style=\"color:{}\">{}</h1></body></html>",
                                          bindings.get("color").unwrap(),
@@ -43,8 +43,8 @@ mod tests {
 
     struct SecurePage;
 
-    impl EndpointFunction for SecurePage {
-        fn handle(&self, request: Request, bindings: Bindings) -> Response {
+    impl FileResponder for SecurePage {
+        fn response(&self, _: Request, _: PathBuf) -> Response {
             Response::redirect("index.html")
         }
     }
